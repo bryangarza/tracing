@@ -1,7 +1,7 @@
 #![deny(warnings)]
 use tracing::{
     callsite, debug, debug_span, enabled, error, error_span, event, event_enabled, info, info_span,
-    span, span_enabled, trace, trace_span, warn, warn_span, Level,
+    span, span_enabled, trace, trace_span, warn, warn_span, Level, metric,
 };
 
 // Tests that macros work across various invocation syntax.
@@ -332,6 +332,12 @@ fn event() {
     event!(Level::DEBUG, ?foo);
     event!(Level::DEBUG, %foo);
     event!(Level::DEBUG, foo);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[test]
+fn metric() {
+    metric!("MY_ERROR_METRIC", 1);
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]

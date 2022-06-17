@@ -1,3 +1,5 @@
+use core::time::Duration;
+
 /// Constructs a new span.
 ///
 /// See [the top-level documentation][lib] for details on the syntax accepted by
@@ -798,6 +800,15 @@ macro_rules! event {
     );
     ( $lvl:expr, $($arg:tt)+ ) => (
         $crate::event!(target: module_path!(), $lvl, { $($arg)+ })
+    );
+}
+
+#[macro_export]
+macro_rules! metric {
+    ($metric:expr) => (
+        //$crate::event!($crate::Level::INFO, metric)
+        $crate::event!($crate::Level::INFO, metric.name = $metric.name, metric.value = $metric.value)
+        //$crate::event!($crate::Level::INFO, $metric_key = $metric_value)
     );
 }
 

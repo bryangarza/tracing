@@ -1,8 +1,8 @@
-use crate::{OtelData, PreSampledTracer};
+use crate::{OtelData, PreSampledTracer, metric::{MetricVisitor, Metric}};
 use once_cell::unsync;
 use opentelemetry::{
     trace::{self as otel, noop, TraceContextExt},
-    Context as OtelContext, Key, KeyValue, Value,
+    Context as OtelContext, Key, KeyValue, Value, sdk::metrics::PushController, metrics::MeterProvider, global,
 };
 use std::fmt;
 use std::marker;
@@ -29,6 +29,7 @@ const SPAN_STATUS_MESSAGE_FIELD: &str = "otel.status_message";
 /// [tracing]: https://github.com/tokio-rs/tracing
 pub struct OpenTelemetrySubscriber<C, T> {
     tracer: T,
+    push_controller: Option<PushController>,
     location: bool,
     tracked_inactivity: bool,
     with_threads: bool,
@@ -293,6 +294,7 @@ where
     pub fn new(tracer: T) -> Self {
         OpenTelemetrySubscriber {
             tracer,
+            push_controller: None,
             location: true,
             tracked_inactivity: true,
             with_threads: true,
@@ -327,12 +329,13 @@ where
     /// let subscriber = Registry::default().with(otel_subscriber);
     /// # drop(subscriber);
     /// ```
-    pub fn with_tracer<Tracer>(self, tracer: Tracer) -> OpenTelemetrySubscriber<C, Tracer>
+    pub fn with_tracer_and_push_controller<Tracer>(self, tracer: Tracer, push_controller: PushController) -> OpenTelemetrySubscriber<C, Tracer>
     where
         Tracer: otel::Tracer + PreSampledTracer + 'static,
     {
         OpenTelemetrySubscriber {
             tracer,
+            push_controller: Some(push_controller),
             location: self.location,
             tracked_inactivity: self.tracked_inactivity,
             with_threads: self.with_threads,
@@ -620,6 +623,36 @@ where
     /// [`ERROR`]: tracing::Level::ERROR
     /// [`Error`]: opentelemetry::trace::StatusCode::Error
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, C>) {
+        /*
+        Since metrics objects are reused, need to lazily init them
+        and store them somewhere that we can reuse them each time
+        that same metric is encountered.
+
+        Map<metric_name:String, MetricObject>
+
+        will maybe need macro to have a register_metric, or handle
+        that logic in register_callsite??
+
+        ---
+
+        OR we can have the metric! macro generate it the first time
+        and just reuse it each time -- pass the metric object 
+        reference as a parameter in the event??
+        No, because we don't want to make the metrics macro specific
+        to OTel
+        */
+
+        let mut metric: Metric<u64> = Default::default();
+        event.record(&mut MetricVisitor(&mut metric));
+        if !metric.name.is_empty() {
+            println!("found metric {metric:?}");
+            let meter = self.push_controller.as_ref().unwrap().provider().meter("tracing/tracing-opentelemetry", None);
+            //let meter = global::meter("tokio.rs/tracing");
+            let counter = meter.u64_counter(metric.name).init();
+            counter.add(metric.value, &[]);
+            return;
+        }
+
         // Ignore events that are not in the context of a span
         if let Some(span) = ctx.lookup_current() {
             // Performing read operations before getting a write lock to avoid a deadlock
@@ -649,6 +682,7 @@ where
                 vec![Key::new("level").string(meta.level().as_str()), target],
                 0,
             );
+
             event.record(&mut SpanEventVisitor(&mut otel_event));
 
             let mut extensions = span.extensions_mut();
