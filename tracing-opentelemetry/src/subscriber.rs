@@ -2,9 +2,9 @@ use crate::{OtelData, PreSampledTracer, metric::{MetricVisitor, Metric}};
 use once_cell::unsync;
 use opentelemetry::{
     trace::{self as otel, noop, TraceContextExt},
-    Context as OtelContext, Key, KeyValue, Value, sdk::metrics::PushController, metrics::MeterProvider, global,
+    Context as OtelContext, Key, KeyValue, Value, sdk::metrics::PushController, metrics::{MeterProvider, Meter, UpDownCounter, Counter, ValueRecorder, SumObserver, UpDownSumObserver, ValueObserver},
 };
-use std::fmt;
+use std::{fmt, collections::HashMap};
 use std::marker;
 use std::thread;
 use std::time::{Instant, SystemTime};
@@ -21,6 +21,60 @@ const SPAN_NAME_FIELD: &str = "otel.name";
 const SPAN_KIND_FIELD: &str = "otel.kind";
 const SPAN_STATUS_CODE_FIELD: &str = "otel.status_code";
 const SPAN_STATUS_MESSAGE_FIELD: &str = "otel.status_message";
+const INSTRUMENTATION_NAME: &str = "tracing/tracing-opentelemetry";
+
+#[derive(Default)]
+pub(crate) struct Counters {
+    type_u64: HashMap<String, Counter<u64>>,
+    type_f64: HashMap<String, Counter<f64>>,
+}
+
+#[derive(Default)]
+pub(crate) struct UpDownCounters {
+    type_i64: HashMap<String, UpDownCounter<i64>>,
+    type_f64: HashMap<String, UpDownCounter<f64>>,
+}
+
+#[derive(Default)]
+pub(crate) struct ValueRecorders {
+    type_u64: HashMap<String, ValueRecorder<u64>>,
+    type_i64: HashMap<String, ValueRecorder<i64>>,
+    type_f64: HashMap<String, ValueRecorder<f64>>,
+}
+
+#[derive(Default)]
+pub(crate) struct SumObservers {
+    type_u64: HashMap<String, SumObserver<u64>>,
+    type_f64: HashMap<String, SumObserver<f64>>,
+}
+
+#[derive(Default)]
+pub(crate) struct UpDownSumObservers {
+    type_i64: HashMap<String, UpDownSumObserver<i64>>,
+    type_f64: HashMap<String, UpDownSumObserver<f64>>,
+}
+
+#[derive(Default)]
+pub(crate) struct ValueObservers {
+    type_u64: HashMap<String, ValueObserver<u64>>,
+    type_i64: HashMap<String, ValueObserver<i64>>,
+    type_f64: HashMap<String, ValueObserver<f64>>,
+}
+
+#[derive(Default)]
+pub(crate) struct Instruments {
+    counters: Counters,
+    up_down_counters: UpDownCounters,
+    value_recorders: ValueRecorders,
+    sum_observers: SumObservers,
+    up_down_sum_observers: UpDownSumObservers,
+    value_observers: ValueObservers,
+}
+
+struct MetricsHandler {
+    push_controller: PushController,
+    meter: Meter,
+}
 
 /// An [OpenTelemetry] propagation subscriber for use in a project that uses
 /// [tracing].
@@ -29,7 +83,7 @@ const SPAN_STATUS_MESSAGE_FIELD: &str = "otel.status_message";
 /// [tracing]: https://github.com/tokio-rs/tracing
 pub struct OpenTelemetrySubscriber<C, T> {
     tracer: T,
-    push_controller: Option<PushController>,
+    metrics_handler: Option<MetricsHandler>,
     location: bool,
     tracked_inactivity: bool,
     with_threads: bool,
@@ -294,7 +348,7 @@ where
     pub fn new(tracer: T) -> Self {
         OpenTelemetrySubscriber {
             tracer,
-            push_controller: None,
+            metrics_handler: None,
             location: true,
             tracked_inactivity: true,
             with_threads: true,
@@ -333,9 +387,14 @@ where
     where
         Tracer: otel::Tracer + PreSampledTracer + 'static,
     {
+        let meter = push_controller.provider().meter(INSTRUMENTATION_NAME, None);
+        let metrics_handler = Some(MetricsHandler {
+            push_controller,
+            meter,
+        });
         OpenTelemetrySubscriber {
             tracer,
-            push_controller: Some(push_controller),
+            metrics_handler,
             location: self.location,
             tracked_inactivity: self.tracked_inactivity,
             with_threads: self.with_threads,
@@ -623,38 +682,56 @@ where
     /// [`ERROR`]: tracing::Level::ERROR
     /// [`Error`]: opentelemetry::trace::StatusCode::Error
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, C>) {
-        /*
-        Since metrics objects are reused, need to lazily init them
-        and store them somewhere that we can reuse them each time
-        that same metric is encountered.
-
-        Map<metric_name:String, MetricObject>
-
-        will maybe need macro to have a register_metric, or handle
-        that logic in register_callsite??
-
-        ---
-
-        OR we can have the metric! macro generate it the first time
-        and just reuse it each time -- pass the metric object 
-        reference as a parameter in the event??
-        No, because we don't want to make the metrics macro specific
-        to OTel
-        */
-
-        let mut metric: Metric<u64> = Default::default();
-        event.record(&mut MetricVisitor(&mut metric));
-        if !metric.name.is_empty() {
-            println!("found metric {metric:?}");
-            let meter = self.push_controller.as_ref().unwrap().provider().meter("tracing/tracing-opentelemetry", None);
-            //let meter = global::meter("tokio.rs/tracing");
-            let counter = meter.u64_counter(metric.name).init();
-            counter.add(metric.value, &[]);
-            return;
-        }
-
         // Ignore events that are not in the context of a span
         if let Some(span) = ctx.lookup_current() {
+            /*
+            Since metrics objects are reused, need to lazily init them
+            and store them somewhere that we can reuse them each time
+            that same metric is encountered.
+
+            Map<metric_name:String, MetricObject>
+
+            will maybe need macro to have a register_metric, or handle
+            that logic in register_callsite??
+
+            ---
+
+            OR we can have the metric! macro generate it the first time
+            and just reuse it each time -- pass the metric object 
+            reference as a parameter in the event??
+            No, because we don't want to make the metrics macro specific
+            to OTel
+            */
+            let mut extensions = span.extensions_mut();
+
+            let ext_instruments = extensions.get_mut::<Instruments>();
+            // TODO: Get rid of this hack -- need a clean way of setting per-callsite metric
+            let mut instruments: &mut Instruments = &mut Default::default(); 
+            match ext_instruments {
+                Some(x) => instruments = x,
+                None => {
+                    let mut x: Instruments = Default::default();
+                    // extensions.insert(instruments);
+                    instruments = &mut x;
+                }
+            };
+
+            let mut metric: Metric<u64> = Default::default();
+            event.record(&mut MetricVisitor(&mut metric));
+            if !metric.name.is_empty() {
+                if let Some(counter) = instruments.counters.type_u64.get(&metric.name) {
+                    println!("Reusing existing counter instance for {metric:?}");
+                    counter.add(metric.value, &[]);
+                } else {
+                    println!("Creating new counter instance for {metric:?}");
+                    let meter = &self.metrics_handler.as_ref().unwrap().meter;
+                    let counter = meter.u64_counter(metric.name).init();
+                    counter.add(metric.value, &[]);
+                    instruments.counters.type_u64.insert(metric.name.clone(), counter);
+                };
+                return;
+            }
+
             // Performing read operations before getting a write lock to avoid a deadlock
             // See https://github.com/tokio-rs/tracing/issues/763
             #[cfg(feature = "tracing-log")]
@@ -684,7 +761,6 @@ where
             );
 
             event.record(&mut SpanEventVisitor(&mut otel_event));
-
             let mut extensions = span.extensions_mut();
             if let Some(OtelData { builder, .. }) = extensions.get_mut::<OtelData>() {
                 if builder.status_code.is_none() && *meta.level() == tracing_core::Level::ERROR {
