@@ -336,32 +336,6 @@ where
     C: Collect + for<'span> LookupSpan<'span>,
     T: otel::Tracer + PreSampledTracer + 'static,
 {
-    fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
-        let mut interest = Interest::never();
-        for key in metadata.fields() {
-            let name = key.name();
-            if name.contains("count") {
-                self.instruments
-                    .0
-                    .write()
-                    .unwrap()
-                    .counters
-                    .type_u64
-                    .entry(name.to_owned())
-                    .or_insert_with(|| {
-                        self.metrics_handler
-                            .as_ref()
-                            .unwrap()
-                            .meter
-                            .u64_counter("i-hope-this-compiles")
-                            .init()
-                    });
-                interest = Interest::always();
-            }
-        }
-        interest
-    }
-
     /// Set the [`Tracer`] that this subscriber will use to produce and track
     /// OpenTelemetry [`Span`]s.
     ///
@@ -595,6 +569,51 @@ where
     C: Collect + for<'span> LookupSpan<'span>,
     T: otel::Tracer + PreSampledTracer + 'static,
 {
+    fn register_callsite(&self, metadata: &'static Metadata<'static>) -> Interest {
+        println!("register_callsite: {:?}", metadata);
+        /*
+        Since I can now insert during this method, I can now create an enum to
+        represent all types of OTel metrics, make that implement/work with Valuable,
+        and then write a visitor that accesses the right hashmap to look up the metric
+        and add to it.
+
+        Before putting up this branch's PR, I probably need a separate PR to add
+        "valuable" support to tracing-opentelemetry.
+
+        Well, not sure yet, because don't we want the data passed into the metrics
+        macro to be compatible with other subscribers?? If it's OTel specific,
+        then we can't get interop with tokio-console...
+
+        Update: we need PER-CALLSITE storage of the metric
+
+        CallsiteExtensions?
+        Meantime, globally mutable hashmap somewhere
+        */
+        for key in metadata.fields() {
+            let name = key.name();
+            println!("HELLO {name}");
+            if name.contains("METRIC_") {
+                println!("Bootstrapping for {name}");
+                self.instruments
+                    .0
+                    .write()
+                    .unwrap()
+                    .counters
+                    .type_u64
+                    .entry(name.to_owned())
+                    .or_insert_with(|| {
+                        self.metrics_handler
+                            .as_ref()
+                            .unwrap()
+                            .meter
+                            .u64_counter("i-hope-this-compiles")
+                            .init()
+                    });
+            }
+        }
+        Interest::always()
+    }
+
     /// Creates an [OpenTelemetry `Span`] for the corresponding [tracing `Span`].
     ///
     /// [OpenTelemetry `Span`]: opentelemetry::trace::Span
@@ -767,6 +786,15 @@ where
             //         instruments = &mut x;
             //     }
             // };
+
+            let mut metric: Metric<u64> = Default::default();
+            event.record(&mut MetricVisitor(&mut metric));
+            if !metric.name.is_empty() {
+                let instruments = self.instruments.0.write().unwrap();
+                let counter = instruments.counters.type_u64.get(&metric.name).unwrap();
+                println!("Reusing existing counter instance for {metric:?}");
+                counter.add(metric.value, &[]);
+            }
 
             // let mut metric: Metric<u64> = Default::default();
             // event.record(&mut MetricVisitor(&mut metric));

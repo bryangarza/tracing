@@ -15,15 +15,16 @@ impl<'a> Visit for MetricVisitor<'a> {
         // Do nothing
     }
 
-    fn record_str(&mut self, field: &Field, value: &str) {
-        if field.name() == "metric.name" {
-            self.0.name = value.to_string().into()
-        }
-    }
+    // fn record_str(&mut self, field: &Field, value: &str) {
+    //     if field.name() == "metric.name" {
+    //         self.0.name = value.to_string().into();
+    //     }
+    // }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
-        if field.name() == "metric.value" {
-            self.0.value = value
+        if field.name().starts_with("METRIC_") {
+            self.0.name = field.name().to_string();
+            self.0.value = value;
         }
     }
 }

@@ -803,14 +803,14 @@ macro_rules! event {
     );
 }
 
-#[macro_export]
-macro_rules! metric {
-    ($metric:expr) => (
-        //$crate::event!($crate::Level::INFO, metric)
-        $crate::event!($crate::Level::INFO, metric.name = $metric.name, metric.value = $metric.value)
-        //$crate::event!($crate::Level::INFO, $metric_key = $metric_value)
-    );
-}
+// #[macro_export]
+// macro_rules! metric {
+//     ($metric:expr) => (
+//         //$crate::event!($crate::Level::INFO, metric)
+//         //$crate::event!($crate::Level::INFO, metric.name = $metric.name, metric.value = $metric.value)
+//         $crate::event!($crate::Level::INFO, "test", $metric.name = $metric.value)
+//     );
+// }
 
 /// Tests whether an event with the specified level and target would be enabled.
 ///
