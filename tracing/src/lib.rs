@@ -976,7 +976,6 @@ pub mod field;
 pub mod instrument;
 pub mod level_filters;
 pub mod span;
-pub mod metric;
 
 #[doc(hidden)]
 pub mod __macro_support {

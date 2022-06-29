@@ -1,5 +1,3 @@
-use core::time::Duration;
-
 /// Constructs a new span.
 ///
 /// See [the top-level documentation][lib] for details on the syntax accepted by
@@ -829,7 +827,7 @@ macro_rules! event {
 /// }
 /// // simpler
 /// if event_enabled!(Level::DEBUG) {
-///     // some expensive work...
+///     // some expensive work...v
 /// }
 /// // with fields
 /// if event_enabled!(Level::DEBUG, foo_field) {
