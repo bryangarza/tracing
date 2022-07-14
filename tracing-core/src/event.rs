@@ -3,6 +3,8 @@ use crate::parent::Parent;
 use crate::span::Id;
 use crate::{field, Metadata};
 
+use valuable::Visit;
+
 /// `Event`s represent single points in time where something occurred during the
 /// execution of a program.
 ///
@@ -81,9 +83,9 @@ impl<'a> Event<'a> {
 
     /// Visits all the fields on this `Event` with the specified [visitor].
     ///
-    /// [visitor]: super::field::Visit
+    /// [visitor]: valuable::Visit
     #[inline]
-    pub fn record(&self, visitor: &mut dyn field::Visit) {
+    pub fn record(&self, visitor: &mut dyn Visit) {
         self.fields.record(visitor);
     }
 

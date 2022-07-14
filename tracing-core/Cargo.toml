@@ -36,6 +36,7 @@ maintenance = { status = "actively-developed" }
 
 [dependencies]
 once_cell = { version = "1.12", optional = true }
+valuable = "0.1.0"
 
 [package.metadata.docs.rs]
 all-features = true
