@@ -1,6 +1,6 @@
 //! `MakeVisitor` wrappers for working with `fmt::Debug` fields.
 use super::{MakeVisitor, VisitFmt, VisitOutput};
-use tracing_core::field::{Field, Visit};
+use tracing_core::field::Field;
 
 use core::fmt;
 

@@ -3,7 +3,6 @@
 //! [fields]: tracing_core::field
 //! [field visitors]: tracing_core::field::Visit
 use core::{fmt, marker::PhantomData};
-pub use tracing_core::field::Visit;
 use tracing_core::{
     span::{Attributes, Record},
     Event,

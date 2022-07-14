@@ -132,11 +132,13 @@ use std::{fmt, io};
 use tracing_core::{
     callsite::{self, Callsite},
     collect, dispatch,
-    field::{self, Field, Visit},
+    field::{self, Field},
     identify_callsite,
     metadata::{Kind, Level},
     Event, Metadata,
 };
+
+use valuable::{NamedValues, Value, Valuable, Visit};
 
 #[cfg(feature = "log-tracer")]
 #[cfg_attr(docsrs, doc(cfg(feature = "log-tracer")))]
@@ -175,14 +177,16 @@ pub(crate) fn dispatch_record(record: &log::Record<'_>) {
         let log_file = record.file();
         let log_line = record.line();
 
-        let module = log_module.as_ref().map(|s| s as &dyn field::Value);
-        let file = log_file.as_ref().map(|s| s as &dyn field::Value);
-        let line = log_line.as_ref().map(|s| s as &dyn field::Value);
+        let module = log_module.as_ref().map(|s| s as &dyn Valuable);
+        let file = log_file.as_ref().map(|s| s as &dyn Valuable);
+        let line = log_line.as_ref().map(|s| s as &dyn Valuable);
 
         dispatch.event(&Event::new(
             meta,
             &meta.fields().value_set(&[
-                (&keys.message, Some(record.args() as &dyn field::Value)),
+                // TODO: Valuable
+                // (&keys.message, Some(record.args() as &dyn Valuable)),
+                (&keys.message, Some(&"record.args()".to_string() as &dyn Valuable)),
                 (&keys.target, Some(&record.target())),
                 (&keys.module, module),
                 (&keys.file, file),
@@ -469,7 +473,8 @@ impl<'a> NormalizeEvent<'a> for Event<'a> {
         let original = self.metadata();
         if self.is_log() {
             let mut fields = LogVisitor::new_for(self, level_to_cs(*original.level()).1);
-            self.record(&mut fields);
+            // TODO: Valuable
+            // self.record(&mut fields);
 
             Some(Metadata::new(
                 "log event",
@@ -514,32 +519,32 @@ impl<'a> LogVisitor<'a> {
     }
 }
 
-impl<'a> Visit for LogVisitor<'a> {
-    fn record_debug(&mut self, _field: &Field, _value: &dyn fmt::Debug) {}
+// impl<'a> Visit for LogVisitor<'a> {
+//     fn record_debug(&mut self, _field: &Field, _value: &dyn fmt::Debug) {}
 
-    fn record_u64(&mut self, field: &Field, value: u64) {
-        if field == &self.fields.line {
-            self.line = Some(value);
-        }
-    }
+//     fn record_u64(&mut self, field: &Field, value: u64) {
+//         if field == &self.fields.line {
+//             self.line = Some(value);
+//         }
+//     }
 
-    fn record_str(&mut self, field: &Field, value: &str) {
-        unsafe {
-            // The `Visit` API erases the string slice's lifetime. However, we
-            // know it is part of the `Event` struct with a lifetime of `'a`. If
-            // (and only if!) this `LogVisitor` was constructed with the same
-            // lifetime parameter `'a` as the event in question, it's safe to
-            // cast these string slices to the `'a` lifetime.
-            if field == &self.fields.file {
-                self.file = Some(&*(value as *const _));
-            } else if field == &self.fields.target {
-                self.target = Some(&*(value as *const _));
-            } else if field == &self.fields.module {
-                self.module_path = Some(&*(value as *const _));
-            }
-        }
-    }
-}
+//     fn record_str(&mut self, field: &Field, value: &str) {
+//         unsafe {
+//             // The `Visit` API erases the string slice's lifetime. However, we
+//             // know it is part of the `Event` struct with a lifetime of `'a`. If
+//             // (and only if!) this `LogVisitor` was constructed with the same
+//             // lifetime parameter `'a` as the event in question, it's safe to
+//             // cast these string slices to the `'a` lifetime.
+//             if field == &self.fields.file {
+//                 self.file = Some(&*(value as *const _));
+//             } else if field == &self.fields.target {
+//                 self.target = Some(&*(value as *const _));
+//             } else if field == &self.fields.module {
+//                 self.module_path = Some(&*(value as *const _));
+//             }
+//         }
+//     }
+// }
 
 mod sealed {
     pub trait Sealed {}

@@ -2,7 +2,7 @@
 use super::{MakeVisitor, VisitFmt, VisitOutput};
 
 use core::fmt;
-use tracing_core::field::{Field, Visit};
+use tracing_core::field::Field;
 
 /// A `MakeVisitor` wrapper that wraps a visitor that writes formatted output so
 /// that a delimiter is inserted between writing formatted field values.
