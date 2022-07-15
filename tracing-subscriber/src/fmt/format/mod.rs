@@ -38,9 +38,11 @@ use crate::{
 
 use std::{fmt, marker::PhantomData};
 use tracing_core::{
-    field::{self, Field, Visit},
+    field::{self, Field},
     span, Collect, Event, Level,
 };
+
+use valuable::Visit;
 
 #[cfg(feature = "tracing-log")]
 use tracing_log::NormalizeEvent;
@@ -1187,66 +1189,67 @@ impl<'a> DefaultVisitor<'a> {
     }
 }
 
-impl<'a> field::Visit for DefaultVisitor<'a> {
-    fn record_str(&mut self, field: &Field, value: &str) {
-        if self.result.is_err() {
-            return;
-        }
+// TODO: Valuable
+// impl<'a> field::Visit for DefaultVisitor<'a> {
+//     fn record_str(&mut self, field: &Field, value: &str) {
+//         if self.result.is_err() {
+//             return;
+//         }
 
-        if field.name() == "message" {
-            self.record_debug(field, &format_args!("{}", value))
-        } else {
-            self.record_debug(field, &value)
-        }
-    }
+//         if field.name() == "message" {
+//             self.record_debug(field, &format_args!("{}", value))
+//         } else {
+//             self.record_debug(field, &value)
+//         }
+//     }
 
-    fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
-        if let Some(source) = value.source() {
-            let italic = self.writer.italic();
-            self.record_debug(
-                field,
-                &format_args!(
-                    "{} {}{}{}{}",
-                    value,
-                    italic.paint(field.name()),
-                    italic.paint(".sources"),
-                    self.writer.dimmed().paint("="),
-                    ErrorSourceList(source)
-                ),
-            )
-        } else {
-            self.record_debug(field, &format_args!("{}", value))
-        }
-    }
+//     fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
+//         if let Some(source) = value.source() {
+//             let italic = self.writer.italic();
+//             self.record_debug(
+//                 field,
+//                 &format_args!(
+//                     "{} {}{}{}{}",
+//                     value,
+//                     italic.paint(field.name()),
+//                     italic.paint(".sources"),
+//                     self.writer.dimmed().paint("="),
+//                     ErrorSourceList(source)
+//                 ),
+//             )
+//         } else {
+//             self.record_debug(field, &format_args!("{}", value))
+//         }
+//     }
 
-    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        if self.result.is_err() {
-            return;
-        }
+//     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+//         if self.result.is_err() {
+//             return;
+//         }
 
-        self.maybe_pad();
-        self.result = match field.name() {
-            "message" => write!(self.writer, "{:?}", value),
-            // Skip fields that are actually log metadata that have already been handled
-            #[cfg(feature = "tracing-log")]
-            name if name.starts_with("log.") => Ok(()),
-            name if name.starts_with("r#") => write!(
-                self.writer,
-                "{}{}{:?}",
-                self.writer.italic().paint(&name[2..]),
-                self.writer.dimmed().paint("="),
-                value
-            ),
-            name => write!(
-                self.writer,
-                "{}{}{:?}",
-                self.writer.italic().paint(name),
-                self.writer.dimmed().paint("="),
-                value
-            ),
-        };
-    }
-}
+//         self.maybe_pad();
+//         self.result = match field.name() {
+//             "message" => write!(self.writer, "{:?}", value),
+//             // Skip fields that are actually log metadata that have already been handled
+//             #[cfg(feature = "tracing-log")]
+//             name if name.starts_with("log.") => Ok(()),
+//             name if name.starts_with("r#") => write!(
+//                 self.writer,
+//                 "{}{}{:?}",
+//                 self.writer.italic().paint(&name[2..]),
+//                 self.writer.dimmed().paint("="),
+//                 value
+//             ),
+//             name => write!(
+//                 self.writer,
+//                 "{}{}{:?}",
+//                 self.writer.italic().paint(name),
+//                 self.writer.dimmed().paint("="),
+//                 value
+//             ),
+//         };
+//     }
+// }
 
 impl<'a> crate::field::VisitOutput<fmt::Result> for DefaultVisitor<'a> {
     fn finish(self) -> fmt::Result {
@@ -1438,16 +1441,17 @@ where
     }
 }
 
-impl<'a, F> Visit for FieldFnVisitor<'a, F>
-where
-    F: Fn(&mut Writer<'a>, &Field, &dyn fmt::Debug) -> fmt::Result,
-{
-    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        if self.result.is_ok() {
-            self.result = (self.f)(&mut self.writer, field, value)
-        }
-    }
-}
+// TODO: Valuable
+// impl<'a, F> Visit for FieldFnVisitor<'a, F>
+// where
+//     F: Fn(&mut Writer<'a>, &Field, &dyn fmt::Debug) -> fmt::Result,
+// {
+//     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+//         if self.result.is_ok() {
+//             self.result = (self.f)(&mut self.writer, field, value)
+//         }
+//     }
+// }
 
 impl<'a, F> VisitOutput<fmt::Result> for FieldFnVisitor<'a, F>
 where

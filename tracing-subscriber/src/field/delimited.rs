@@ -4,6 +4,8 @@ use super::{MakeVisitor, VisitFmt, VisitOutput};
 use core::fmt;
 use tracing_core::field::Field;
 
+use valuable::Visit;
+
 /// A `MakeVisitor` wrapper that wraps a visitor that writes formatted output so
 /// that a delimiter is inserted between writing formatted field values.
 #[derive(Debug, Clone)]
@@ -80,36 +82,37 @@ impl<D, V> VisitDelimited<D, V> {
     }
 }
 
-impl<D, V> Visit for VisitDelimited<D, V>
-where
-    V: VisitFmt,
-    D: AsRef<str>,
-{
-    fn record_i64(&mut self, field: &Field, value: i64) {
-        self.delimit();
-        self.inner.record_i64(field, value);
-    }
+// TODO: Visit
+// impl<D, V> Visit for VisitDelimited<D, V>
+// where
+//     V: VisitFmt,
+//     D: AsRef<str>,
+// {
+//     fn record_i64(&mut self, field: &Field, value: i64) {
+//         self.delimit();
+//         self.inner.record_i64(field, value);
+//     }
 
-    fn record_u64(&mut self, field: &Field, value: u64) {
-        self.delimit();
-        self.inner.record_u64(field, value);
-    }
+//     fn record_u64(&mut self, field: &Field, value: u64) {
+//         self.delimit();
+//         self.inner.record_u64(field, value);
+//     }
 
-    fn record_bool(&mut self, field: &Field, value: bool) {
-        self.delimit();
-        self.inner.record_bool(field, value);
-    }
+//     fn record_bool(&mut self, field: &Field, value: bool) {
+//         self.delimit();
+//         self.inner.record_bool(field, value);
+//     }
 
-    fn record_str(&mut self, field: &Field, value: &str) {
-        self.delimit();
-        self.inner.record_str(field, value);
-    }
+//     fn record_str(&mut self, field: &Field, value: &str) {
+//         self.delimit();
+//         self.inner.record_str(field, value);
+//     }
 
-    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        self.delimit();
-        self.inner.record_debug(field, value);
-    }
-}
+//     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+//         self.delimit();
+//         self.inner.record_debug(field, value);
+//     }
+// }
 
 impl<D, V> VisitOutput<fmt::Result> for VisitDelimited<D, V>
 where

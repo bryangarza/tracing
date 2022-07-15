@@ -15,6 +15,8 @@ use tracing_core::{
     Collect, Event, Metadata,
 };
 
+use valuable::Valuable;
+
 /// A [`Subscriber`] that logs formatted representations of `tracing` events.
 ///
 /// ## Examples
@@ -632,7 +634,7 @@ macro_rules! with_event_from_span {
         #[allow(unused)]
         let mut iter = fs.iter();
         let v = [$(
-            (&iter.next().unwrap(), Some(&$value as &dyn field::Value)),
+            (&iter.next().unwrap(), Some(&$value as &dyn Valuable)),
         )*];
         let vs = fs.value_set(&v);
         let $event = Event::new_child_of($id, meta, &vs);
@@ -750,8 +752,11 @@ where
                 } = *timing;
                 idle += (Instant::now() - last).as_nanos() as u64;
 
-                let t_idle = field::display(TimingDisplay(idle));
-                let t_busy = field::display(TimingDisplay(busy));
+                // TODO: Valuable
+                // let t_idle = field::display(TimingDisplay(idle));
+                // let t_busy = field::display(TimingDisplay(busy));
+                let t_idle = todo!();
+                let t_busy = todo!();
 
                 with_event_from_span!(
                     id,

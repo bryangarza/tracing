@@ -11,6 +11,8 @@ pub mod debug;
 pub mod delimited;
 pub mod display;
 
+use valuable::Visit;
+
 /// Creates new [visitors].
 ///
 /// A type implementing `MakeVisitor` represents a composable factory for types

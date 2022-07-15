@@ -38,6 +38,7 @@ local-time = ["time/local-offset"]
 
 [dependencies]
 tracing-core = { path = "../tracing-core", version = "0.2", default-features = false }
+valuable = { version = "0.1.0", features = ["derive"] }
 
 # only required by the `env-filter` feature
 tracing = { optional = true, path = "../tracing", version = "0.2", default-features = false }

@@ -15,6 +15,7 @@ use tracing_core::{
 use tracing_log::NormalizeEvent;
 
 use ansi_term::{Colour, Style};
+use valuable::{Value, Visit, NamedValues};
 
 /// An excessively pretty, human-readable event formatter.
 ///
@@ -423,40 +424,8 @@ impl<'a> PrettyVisitor<'a> {
             Style::new()
         }
     }
-}
 
-impl<'a> field::Visit for PrettyVisitor<'a> {
-    fn record_str(&mut self, field: &Field, value: &str) {
-        if self.result.is_err() {
-            return;
-        }
-
-        if field.name() == "message" {
-            self.record_debug(field, &format_args!("{}", value))
-        } else {
-            self.record_debug(field, &value)
-        }
-    }
-
-    fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
-        if let Some(source) = value.source() {
-            let bold = self.bold();
-            self.record_debug(
-                field,
-                &format_args!(
-                    "{}, {}{}.sources{}: {}",
-                    value,
-                    bold.prefix(),
-                    field,
-                    bold.infix(self.style),
-                    ErrorSourceList(source),
-                ),
-            )
-        } else {
-            self.record_debug(field, &format_args!("{}", value))
-        }
-    }
-
+    // moved from field::Visit impl
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         if self.result.is_err() {
             return;
@@ -484,6 +453,101 @@ impl<'a> field::Visit for PrettyVisitor<'a> {
         };
     }
 }
+
+impl<'a> Visit for PrettyVisitor<'a> {
+    fn visit_value(&mut self, value: valuable::Value<'_>) {
+        todo!()
+    }
+
+    fn visit_named_fields(&mut self, named_fields: &NamedValues<'_>) {
+        for (field, value) in named_fields.iter() {
+            if let Value::String(s) = value {
+                if field.name() = "message" {
+                    self.record_debug(field, &format_args!("{}", s))
+                } else {
+                    self.record_debug(field, s)
+                }
+            } else if let Value::Error(e) = value {
+                if let Some(source) = value.source() {
+                    let bold = self.bold();
+                    self.record_debug(
+                        field,
+                        &format_args!(
+                            "{}, {}{}.sources{}: {}",
+                            value,
+                            bold.prefix(),
+                            field,
+                            bold.infix(self.style),
+                            ErrorSourceList(source),
+                        ),
+                    )
+                } else {
+                    self.record_debug(field, &format_args!("{}", value))
+                }
+            }
+        }
+    }
+}
+
+// impl<'a> field::Visit for PrettyVisitor<'a> {
+//     fn record_str(&mut self, field: &Field, value: &str) {
+//         if self.result.is_err() {
+//             return;
+//         }
+
+//         if field.name() == "message" {
+//             self.record_debug(field, &format_args!("{}", value))
+//         } else {
+//             self.record_debug(field, &value)
+//         }
+//     }
+
+//     fn record_error(&mut self, field: &Field, value: &(dyn std::error::Error + 'static)) {
+//         if let Some(source) = value.source() {
+//             let bold = self.bold();
+//             self.record_debug(
+//                 field,
+//                 &format_args!(
+//                     "{}, {}{}.sources{}: {}",
+//                     value,
+//                     bold.prefix(),
+//                     field,
+//                     bold.infix(self.style),
+//                     ErrorSourceList(source),
+//                 ),
+//             )
+//         } else {
+//             self.record_debug(field, &format_args!("{}", value))
+//         }
+//     }
+
+//     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
+//         if self.result.is_err() {
+//             return;
+//         }
+//         let bold = self.bold();
+//         match field.name() {
+//             "message" => self.write_padded(&format_args!("{}{:?}", self.style.prefix(), value,)),
+//             // Skip fields that are actually log metadata that have already been handled
+//             #[cfg(feature = "tracing-log")]
+//             name if name.starts_with("log.") => self.result = Ok(()),
+//             name if name.starts_with("r#") => self.write_padded(&format_args!(
+//                 "{}{}{}: {:?}",
+//                 bold.prefix(),
+//                 &name[2..],
+//                 bold.infix(self.style),
+//                 value
+//             )),
+//             name => self.write_padded(&format_args!(
+//                 "{}{}{}: {:?}",
+//                 bold.prefix(),
+//                 name,
+//                 bold.infix(self.style),
+//                 value
+//             )),
+//         };
+//     }
+// }
 
 impl<'a> VisitOutput<fmt::Result> for PrettyVisitor<'a> {
     fn finish(mut self) -> fmt::Result {
