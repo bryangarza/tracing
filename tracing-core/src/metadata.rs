@@ -1,5 +1,7 @@
 //! Metadata describing trace data.
-use super::{callsite, field};
+use valuable::NamedField;
+
+use super::callsite;
 use core::{
     cmp, fmt,
     str::FromStr,
@@ -79,7 +81,10 @@ pub struct Metadata<'a> {
 
     /// The names of the key-value fields attached to the described span or
     /// event.
-    fields: field::FieldSet,
+    fields: &'static [NamedField<'static>],
+
+    /// The callsite that this metadata originated from.
+    callsite: callsite::Identifier,
 
     /// The kind of the callsite.
     kind: Kind,
@@ -258,7 +263,8 @@ impl<'a> Metadata<'a> {
         file: Option<&'a str>,
         line: Option<u32>,
         module_path: Option<&'a str>,
-        fields: field::FieldSet,
+        fields: &'static [NamedField<'static>],
+        callsite: callsite::Identifier,
         kind: Kind,
     ) -> Self {
         Metadata {
@@ -269,12 +275,13 @@ impl<'a> Metadata<'a> {
             file,
             line,
             fields,
+            callsite,
             kind,
         }
     }
 
     /// Returns the names of the fields on the described span or event.
-    pub fn fields(&self) -> &field::FieldSet {
+    pub fn fields(&self) -> &'static [NamedField<'static>] {
         &self.fields
     }
 
@@ -319,7 +326,7 @@ impl<'a> Metadata<'a> {
     /// this `Metadata` originated from.
     #[inline]
     pub fn callsite(&self) -> callsite::Identifier {
-        self.fields.callsite()
+        self.callsite.clone()
     }
 
     /// Returns true if the callsite kind is `Event`.
@@ -359,7 +366,7 @@ impl<'a> fmt::Debug for Metadata<'a> {
             (None, None) => {}
         };
 
-        meta.field("fields", &format_args!("{}", self.fields))
+        meta.field("fields", &format_args!("{:?}", self.fields))
             .field("callsite", &self.callsite())
             .field("kind", &self.kind)
             .finish()
@@ -467,6 +474,7 @@ impl<'a> PartialEq for Metadata<'a> {
                 file: lhs_file,
                 line: lhs_line,
                 fields: lhs_fields,
+                callsite: lhs_callsite,
                 kind: lhs_kind,
             } = self;
 
@@ -478,6 +486,7 @@ impl<'a> PartialEq for Metadata<'a> {
                 file: rhs_file,
                 line: rhs_line,
                 fields: rhs_fields,
+                callsite: rhs_callsite,
                 kind: rhs_kind,
             } = &other;
 
@@ -492,6 +501,7 @@ impl<'a> PartialEq for Metadata<'a> {
                 && lhs_file == rhs_file
                 && lhs_line == rhs_line
                 && lhs_fields == rhs_fields
+                && lhs_callsite == rhs_callsite
                 && lhs_kind == rhs_kind
         }
     }

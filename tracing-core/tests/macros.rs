@@ -31,7 +31,7 @@ fn metadata_macro_api() {
         target: "test_target",
         level: Level::DEBUG,
         fields: &[FOO, BAR, BAZ],
-        callsite: &CALLSITE,
+        callsite: tracing_core::callsite::Identifier(&CALLSITE),
         kind: Kind::SPAN,
     };
     let _metadata = metadata! {
@@ -39,7 +39,7 @@ fn metadata_macro_api() {
         target: "test_target",
         level: Level::TRACE,
         fields: &[],
-        callsite: &CALLSITE,
+        callsite: tracing_core::callsite::Identifier(&CALLSITE),
         kind: Kind::EVENT,
     };
     let _metadata = metadata! {
@@ -47,7 +47,7 @@ fn metadata_macro_api() {
         target: "test_target",
         level: Level::INFO,
         fields: &[],
-        callsite: &CALLSITE,
+        callsite: tracing_core::callsite::Identifier(&CALLSITE),
         kind: Kind::EVENT
     };
 }

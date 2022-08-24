@@ -956,7 +956,7 @@ mod test {
 
     use super::*;
     use crate::{
-        callsite::Callsite,
+        callsite::{self, Callsite},
         collect::Interest,
         metadata::{Kind, Level, Metadata},
     };
@@ -981,7 +981,7 @@ mod test {
         target: module_path!(),
         level: Level::DEBUG,
         fields: &[],
-        callsite: &TEST_CALLSITE,
+        callsite: callsite::Identifier(&TEST_CALLSITE),
         kind: Kind::EVENT
     };
 
@@ -995,6 +995,8 @@ mod test {
     #[test]
     #[cfg(feature = "std")]
     fn events_dont_infinite_loop() {
+        use crate::field::ValueSet;
+
         #[derive(Valuable)]
         struct EmptyStruct;
         // This test ensures that an event triggered within a collector
@@ -1020,7 +1022,11 @@ mod test {
                     0,
                     "event method called twice!"
                 );
-                Event::dispatch(&TEST_META, &TEST_META.fields().value_set(&EmptyStruct))
+                let value_set = ValueSet {
+                    values: &EmptyStruct,
+                    callsite: TEST_META.callsite(),
+                };
+                Event::dispatch(&TEST_META, &value_set)
             }
 
             fn enter(&self, _: &span::Id) {}
@@ -1033,13 +1039,19 @@ mod test {
         }
 
         with_default(&Dispatch::new(TestCollector), || {
-            Event::dispatch(&TEST_META, &TEST_META.fields().value_set(&EmptyStruct))
+            let value_set = ValueSet {
+                values: &EmptyStruct,
+                callsite: TEST_META.callsite(),
+            };
+            Event::dispatch(&TEST_META, &value_set)
         })
     }
 
     #[test]
     #[cfg(feature = "std")]
     fn spans_dont_infinite_loop() {
+        use crate::field::ValueSet;
+
         #[derive(Valuable)]
         struct EmptyStruct;
 
@@ -1048,10 +1060,11 @@ mod test {
 
         fn mk_span() {
             get_default(|current| {
-                current.new_span(&span::Attributes::new(
-                    &TEST_META,
-                    &TEST_META.fields().value_set(&EmptyStruct),
-                ))
+                let value_set = ValueSet {
+                    values: &EmptyStruct,
+                    callsite: TEST_META.callsite(),
+                };
+                current.new_span(&span::Attributes::new(&TEST_META, &value_set))
             });
         }
 

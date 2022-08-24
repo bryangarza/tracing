@@ -1,11 +1,10 @@
 //! Spans represent periods of time in the execution of a program.
 use core::num::NonZeroU64;
 
-use crate::field::FieldSet;
 use crate::parent::Parent;
 use crate::{field, Metadata};
 
-use valuable::Visit as ValuableVisit;
+use valuable::{NamedField, Visit};
 
 /// Identifies a span within the context of a collector.
 ///
@@ -23,7 +22,7 @@ pub struct Id(NonZeroU64);
 #[derive(Debug)]
 pub struct Attributes<'a> {
     metadata: &'static Metadata<'static>,
-    values: &'a field::ValueSet<'a>,
+    value_set: &'a field::ValueSet<'a>,
     parent: Parent,
 }
 
@@ -108,20 +107,23 @@ impl<'a> From<&'a Id> for Option<Id> {
 impl<'a> Attributes<'a> {
     /// Returns `Attributes` describing a new child span of the current span,
     /// with the provided metadata and values.
-    pub fn new(metadata: &'static Metadata<'static>, values: &'a field::ValueSet<'a>) -> Self {
+    pub fn new(metadata: &'static Metadata<'static>, value_set: &'a field::ValueSet<'a>) -> Self {
         Attributes {
             metadata,
-            values,
+            value_set,
             parent: Parent::Current,
         }
     }
 
     /// Returns `Attributes` describing a new span at the root of its own trace
     /// tree, with the provided metadata and values.
-    pub fn new_root(metadata: &'static Metadata<'static>, values: &'a field::ValueSet<'a>) -> Self {
+    pub fn new_root(
+        metadata: &'static Metadata<'static>,
+        value_set: &'a field::ValueSet<'a>,
+    ) -> Self {
         Attributes {
             metadata,
-            values,
+            value_set,
             parent: Parent::Root,
         }
     }
@@ -131,11 +133,11 @@ impl<'a> Attributes<'a> {
     pub fn child_of(
         parent: Id,
         metadata: &'static Metadata<'static>,
-        values: &'a field::ValueSet<'a>,
+        value_set: &'a field::ValueSet<'a>,
     ) -> Self {
         Attributes {
             metadata,
-            values,
+            value_set,
             parent: Parent::Explicit(parent),
         }
     }
@@ -148,7 +150,7 @@ impl<'a> Attributes<'a> {
     /// Returns a reference to a `ValueSet` containing any values the new span
     /// was created with.
     pub fn values(&self) -> &field::ValueSet<'a> {
-        self.values
+        self.value_set
     }
 
     /// Returns true if the new span should be a root.
@@ -182,34 +184,19 @@ impl<'a> Attributes<'a> {
     /// [Visitor].
     ///
     /// [visitor]: super::field::Visit
-    pub fn record(&self, visitor: &mut dyn ValuableVisit) {
-        self.values.record(visitor)
+    pub fn visit(&self, visitor: &mut dyn Visit) {
+        self.value_set.visit(visitor)
     }
 
     /// Returns `true` if this set of `Attributes` contains a value for the
     /// given `Field`.
-    pub fn contains(&self, field: &field::Field) -> bool {
-        self.values.contains(field)
+    pub fn contains(&self, search_field: &NamedField<'_>) -> bool {
+        self.value_set.contains(search_field)
     }
 
     /// Returns true if this set of `Attributes` contains _no_ values.
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
-    }
-
-    /// Returns the set of all [fields] defined by this span's [`Metadata`].
-    ///
-    /// Note that the [`FieldSet`] returned by this method includes *all* the
-    /// fields declared by this span, not just those with values that are recorded
-    /// as part of this set of `Attributes`. Other fields with values not present in
-    /// this `Attributes`' value set may [record] values later.
-    ///
-    /// [fields]: crate::field
-    /// [record]: Attributes::record()
-    /// [`Metadata`]: crate::metadata::Metadata
-    /// [`FieldSet`]: crate::field::FieldSet
-    pub fn fields(&self) -> &FieldSet {
-        self.values.field_set()
+        self.value_set.is_empty()
     }
 }
 
@@ -224,13 +211,13 @@ impl<'a> Record<'a> {
     /// Records all the fields in this `Record` with the provided [Visitor].
     ///
     /// [visitor]: super::field::Visit
-    pub fn record(&self, visitor: &mut dyn ValuableVisit) {
-        self.values.record(visitor)
+    pub fn visit(&self, visitor: &mut dyn Visit) {
+        self.values.visit(visitor)
     }
 
     /// Returns `true` if this `Record` contains a value for the given `Field`.
-    pub fn contains(&self, field: &field::Field) -> bool {
-        self.values.contains(field)
+    pub fn contains(&self, search_field: &NamedField<'_>) -> bool {
+        self.values.contains(search_field)
     }
 
     /// Returns true if this `Record` contains _no_ values.

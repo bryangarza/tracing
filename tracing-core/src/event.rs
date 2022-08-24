@@ -1,8 +1,9 @@
 //! Events represent single points in time during the execution of a program.
+use crate::field::ValueSet;
 use crate::parent::Parent;
 use crate::span::Id;
 use crate::{field, Metadata};
-use valuable::Visit as ValuableVisit;
+use valuable::Visit;
 
 /// `Event`s represent single points in time where something occurred during the
 /// execution of a program.
@@ -22,7 +23,7 @@ use valuable::Visit as ValuableVisit;
 /// [fields]: super::field
 #[derive(Debug)]
 pub struct Event<'a> {
-    fields: &'a field::ValueSet<'a>,
+    value_set: &'a field::ValueSet<'a>,
     metadata: &'static Metadata<'static>,
     parent: Parent,
 }
@@ -30,8 +31,8 @@ pub struct Event<'a> {
 impl<'a> Event<'a> {
     /// Constructs a new `Event` with the specified metadata and set of values,
     /// and observes it with the current collector.
-    pub fn dispatch(metadata: &'static Metadata<'static>, fields: &'a field::ValueSet<'_>) {
-        let event = Event::new(metadata, fields);
+    pub fn dispatch(metadata: &'static Metadata<'static>, value_set: &'a field::ValueSet<'_>) {
+        let event = Event::new(metadata, value_set);
         crate::dispatch::get_default(|current| {
             current.event(&event);
         });
@@ -40,9 +41,9 @@ impl<'a> Event<'a> {
     /// Returns a new `Event` in the current span, with the specified metadata
     /// and set of values.
     #[inline]
-    pub fn new(metadata: &'static Metadata<'static>, fields: &'a field::ValueSet<'a>) -> Self {
+    pub fn new(metadata: &'static Metadata<'static>, value_set: &'a field::ValueSet<'a>) -> Self {
         Event {
-            fields,
+            value_set,
             metadata,
             parent: Parent::Current,
         }
@@ -54,14 +55,14 @@ impl<'a> Event<'a> {
     pub fn new_child_of(
         parent: impl Into<Option<Id>>,
         metadata: &'static Metadata<'static>,
-        fields: &'a field::ValueSet<'a>,
+        value_set: &'a field::ValueSet<'a>,
     ) -> Self {
         let parent = match parent.into() {
             Some(p) => Parent::Explicit(p),
             None => Parent::Root,
         };
         Event {
-            fields,
+            value_set,
             metadata,
             parent,
         }
@@ -84,13 +85,13 @@ impl<'a> Event<'a> {
     ///
     /// [visitor]: super::field::Visit
     #[inline]
-    pub fn record(&self, visitor: &mut dyn ValuableVisit) {
-        self.fields.record(visitor);
+    pub fn visit(&self, visitor: &mut dyn Visit) {
+        self.value_set.visit(visitor);
     }
 
     /// Returns an iterator over the set of values on this `Event`.
-    pub fn fields(&self) -> field::Iter {
-        self.fields.field_set().iter()
+    pub fn value_set(&self) -> &ValueSet<'_> {
+        self.value_set
     }
 
     /// Returns [metadata] describing this `Event`.

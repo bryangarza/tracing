@@ -208,6 +208,7 @@ macro_rules! identify_callsite {
 /// /// For example:
 /// ```rust
 /// # use tracing_core::{callsite::Callsite, collect::Interest};
+/// # use tracing_core::callsite;
 /// use tracing_core::metadata;
 /// use tracing_core::metadata::{Kind, Level, Metadata};
 /// use valuable::NamedField;
@@ -230,7 +231,7 @@ macro_rules! identify_callsite {
 ///     target: module_path!(),
 ///     level: Level::DEBUG,
 ///     fields: &[BAR, BAZ],
-///     callsite: &FOO_CALLSITE,
+///     callsite: callsite::Identifier(&FOO_CALLSITE),
 ///     kind: Kind::SPAN,
 /// };
 /// # }
@@ -272,7 +273,8 @@ macro_rules! metadata {
             Some(file!()),
             Some(line!()),
             Some(module_path!()),
-            $crate::field::FieldSet::new($fields, $crate::identify_callsite!($callsite)),
+            $fields,
+            $callsite,
             $kind,
         )
     };
@@ -307,12 +309,7 @@ pub use self::{
     collect::Collect,
     dispatch::Dispatch,
     event::Event,
-    field::Field,
     metadata::{Level, LevelFilter, Metadata},
 };
 
 pub use self::{collect::Interest, metadata::Kind};
-
-mod sealed {
-    pub trait Sealed {}
-}
