@@ -300,12 +300,10 @@
 //! [`follows_from`]: Span::follows_from()
 //! [guard]: Entered
 //! [parent]: #span-relationships
-pub use tracing_core::span::{Attributes, Id, Record};
+pub use tracing_core::span::{Attributes, Id};
+use valuable::{NamedValues, Value, NamedField};
 
-use crate::{
-    dispatch::{self, Dispatch},
-    field, Metadata,
-};
+use crate::{dispatch::{self, Dispatch}, Metadata};
 use core::{
     cmp, fmt,
     hash::{Hash, Hasher},
@@ -424,15 +422,15 @@ impl Span {
     /// [collector]: super::collect::Collect
     /// [field values]: super::field::ValueSet
     /// [`follows_from`]: super::Span::follows_from()
-    pub fn new(meta: &'static Metadata<'static>, values: &field::ValueSet<'_>) -> Span {
-        dispatch::get_default(|dispatch| Self::new_with(meta, values, dispatch))
+    pub fn new(meta: &'static Metadata<'static>, values: NamedValues<'_>) -> Span {
+        dispatch::get_default(|dispatch| Self::new_with(meta, , dispatch))
     }
 
     #[inline]
     #[doc(hidden)]
     pub fn new_with(
         meta: &'static Metadata<'static>,
-        values: &field::ValueSet<'_>,
+        values: NamedValues<'_>,
         dispatch: &Dispatch,
     ) -> Span {
         let new_span = Attributes::new(meta, values);
@@ -448,7 +446,7 @@ impl Span {
     /// [metadata]: mod@super::metadata
     /// [field values]: super::field::ValueSet
     /// [`follows_from`]: super::Span::follows_from()
-    pub fn new_root(meta: &'static Metadata<'static>, values: &field::ValueSet<'_>) -> Span {
+    pub fn new_root(meta: &'static Metadata<'static>, values: NamedValues<'_>) -> Span {
         dispatch::get_default(|dispatch| Self::new_root_with(meta, values, dispatch))
     }
 
@@ -456,7 +454,7 @@ impl Span {
     #[doc(hidden)]
     pub fn new_root_with(
         meta: &'static Metadata<'static>,
-        values: &field::ValueSet<'_>,
+        values: NamedValues<'_>,
         dispatch: &Dispatch,
     ) -> Span {
         let new_span = Attributes::new_root(meta, values);
@@ -475,7 +473,7 @@ impl Span {
     pub fn child_of(
         parent: impl Into<Option<Id>>,
         meta: &'static Metadata<'static>,
-        values: &field::ValueSet<'_>,
+        values: NamedValues<'_>,
     ) -> Span {
         let mut parent = parent.into();
         dispatch::get_default(move |dispatch| {
@@ -488,7 +486,7 @@ impl Span {
     pub fn child_of_with(
         parent: impl Into<Option<Id>>,
         meta: &'static Metadata<'static>,
-        values: &field::ValueSet<'_>,
+        values: NamedValues<'_>,
         dispatch: &Dispatch,
     ) -> Span {
         let new_span = match parent.into() {
@@ -1103,25 +1101,6 @@ impl Span {
         f()
     }
 
-    /// Returns a [`Field`](super::field::Field) for the field with the
-    /// given `name`, if one exists,
-    pub fn field<Q: ?Sized>(&self, field: &Q) -> Option<field::Field>
-    where
-        Q: field::AsField,
-    {
-        self.metadata().and_then(|meta| field.as_field(meta))
-    }
-
-    /// Returns true if this `Span` has a field for the given
-    /// [`Field`](super::field::Field) or field name.
-    #[inline]
-    pub fn has_field<Q: ?Sized>(&self, field: &Q) -> bool
-    where
-        Q: field::AsField,
-    {
-        self.field(field).is_some()
-    }
-
     /// Records that the field described by `field` has the value `value`.
     ///
     /// This may be used with [`field::Empty`] to declare fields whose values
@@ -1193,29 +1172,17 @@ impl Span {
     ///
     /// [`field::Empty`]: super::field::Empty
     /// [`Metadata`]: super::Metadata
-    pub fn record<Q: ?Sized, V>(&self, field: &Q, value: V) -> &Self
-    where
-        Q: field::AsField,
-        V: field::Value,
-    {
-        if let Some(meta) = self.meta {
-            if let Some(field) = field.as_field(meta) {
-                self.record_all(
-                    &meta
-                        .fields()
-                        .value_set(&[(&field, Some(&value as &dyn field::Value))]),
-                );
-            }
-        }
-
+    pub fn record<Q: ?Sized, V>(&self, field: NamedField<'_>, value: Value<'_>) -> &Self {
+        let fields = [field];
+        let values = [value];
+        self.record_all(NamedValues::new(&fields, &values));
         self
     }
 
     /// Records all the fields in the provided `ValueSet`.
-    pub fn record_all(&self, values: &field::ValueSet<'_>) -> &Self {
-        let record = Record::new(values);
+    pub fn record_all(&self, values: NamedValues<'_>) -> &Self {
         if let Some(ref inner) = self.inner {
-            inner.record(&record);
+            inner.record(values);
         }
 
         if let Some(_meta) = self.meta {
@@ -1489,7 +1456,7 @@ impl Inner {
         self.id.clone()
     }
 
-    fn record(&self, values: &Record<'_>) {
+    fn record(&self, values: NamedValues<'_>) {
         self.collector.record(&self.id, values)
     }
 
