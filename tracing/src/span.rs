@@ -423,7 +423,7 @@ impl Span {
     /// [field values]: super::field::ValueSet
     /// [`follows_from`]: super::Span::follows_from()
     pub fn new(meta: &'static Metadata<'static>, values: NamedValues<'_>) -> Span {
-        dispatch::get_default(|dispatch| Self::new_with(meta, , dispatch))
+        dispatch::get_default(|dispatch| Self::new_with(meta, values, dispatch))
     }
 
     #[inline]

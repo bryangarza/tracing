@@ -384,9 +384,9 @@ impl SetGlobalDefaultError {
 /// [dispatcher]: super::dispatch::Dispatch
 #[cfg(feature = "std")]
 #[inline(always)]
-pub fn get_default<T, F>(mut f: F) -> T
+pub fn get_default<T, F>(f: F) -> T
 where
-    F: FnMut(&Dispatch) -> T,
+    F: FnOnce(&Dispatch) -> T,
 {
     if SCOPED_COUNT.load(Ordering::Acquire) == 0 {
         // fast path if no scoped dispatcher has been set; just use the global
@@ -399,9 +399,9 @@ where
 
 #[cfg(feature = "std")]
 #[inline(never)]
-fn get_default_slow<T, F>(mut f: F) -> T
+fn get_default_slow<T, F>(f: F) -> T
 where
-    F: FnMut(&Dispatch) -> T,
+    F: FnOnce(&Dispatch) -> T,
 {
     // While this guard is active, additional calls to collector functions on
     // the default dispatcher will not be able to access the dispatch context.
@@ -414,24 +414,30 @@ where
         }
     }
 
+    let f_addr = &f as *const F;
+
+    // Safety: `call_me_only_once` is called only once, even though it's FnMut.
+    let call_me_only_once = |dispatch: &Dispatch| {
+        unsafe {
+            core::ptr::read::<F>(f_addr)(dispatch)
+        }
+    };
+
     CURRENT_STATE
         .try_with(|state| {
             if state.can_enter.replace(false) {
                 let _guard = Entered(&state.can_enter);
-
                 let mut default = state.default.borrow_mut();
-                let default = default
+                let default: &mut Dispatch = default
                     // if the local default for this thread has never been set,
                     // populate it with the global default, so we don't have to
                     // keep getting the global on every `get_default_slow` call.
                     .get_or_insert_with(|| get_global().clone());
-
-                return f(&*default);
+                call_me_only_once(default)
+            } else {
+                call_me_only_once(&Dispatch::none())
             }
-
-            f(&Dispatch::none())
-        })
-        .unwrap_or_else(|_| f(&Dispatch::none()))
+        }).unwrap_or_else(|_| call_me_only_once(&Dispatch::none()))
 }
 
 /// Executes a closure with a reference to this thread's current [dispatcher].
