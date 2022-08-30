@@ -403,6 +403,8 @@ fn get_default_slow<T, F>(f: F) -> T
 where
     F: FnOnce(&Dispatch) -> T,
 {
+    use core::{mem, ptr};
+
     // While this guard is active, additional calls to collector functions on
     // the default dispatcher will not be able to access the dispatch context.
     // Dropping the guard will allow the dispatch context to be re-entered.
@@ -414,30 +416,76 @@ where
         }
     }
 
-    let f_addr = &f as *const F;
+    /// Allows (unsafely) invoking an `FnOnce` in contexts where the compiler
+    /// cannot prove that the function will only be invoked once.
+    struct UnsafeFnMut<F, R>
+    where
+        F: FnOnce(&Dispatch) -> R,
+    {
+        /// The `FnOnce` that `UnsafeFnMut::call` invokes.
+        /// It's wrapped in `ManuallyDrop` to mitigate the risk of double-frees.
+        fn_once: mem::ManuallyDrop<F>,
 
-    // Safety: `call_me_only_once` is called only once, even though it's FnMut.
-    let call_me_only_once = |dispatch: &Dispatch| {
-        unsafe {
-            core::ptr::read::<F>(f_addr)(dispatch)
+        /// In debug builds, `called` keeps track of whether `UnsafeFnMut::call` has
+        /// already been invoked, and panics if so.
+        #[cfg(debug_assertions)]
+        called: core::sync::atomic::AtomicBool,
+    }
+
+    impl<F, R> UnsafeFnMut<F, R>
+    where
+        F: FnOnce(&Dispatch) -> R,
+    {
+        fn new(f: F) -> Self {
+            Self {
+                fn_once: mem::ManuallyDrop::new(f),
+                #[cfg(debug_assertions)]
+                called: core::sync::atomic::AtomicBool::new(false),
+            }
         }
-    };
+
+        /// Invoke `self.fn_once`.
+        ///
+        /// **SAFETY:** This function must only be called once!
+        /// Otherwise,`self.fn_once` will be dropped more than once,
+        /// potentially double-freeing its captures.
+        unsafe fn call(&self, arg: &Dispatch) -> R {
+            #[cfg(debug_assertions)]
+            debug_assert!(
+                !self.called.swap(true, core::sync::atomic::Ordering::SeqCst),
+                "`UnsafeFnMut::call` has been invoked more than once!"
+            );
+
+            let fn_once = &self.fn_once as *const mem::ManuallyDrop<F>;
+            let fn_mut = |arg| {
+                let fn_mut = mem::ManuallyDrop::into_inner(ptr::read(fn_once));
+                fn_mut(arg) // `self.fn_once` is dropped here
+            };
+
+            fn_mut(arg)
+        }
+    }
+
+    let f = UnsafeFnMut::new(f);
 
     CURRENT_STATE
         .try_with(|state| {
             if state.can_enter.replace(false) {
                 let _guard = Entered(&state.can_enter);
+
                 let mut default = state.default.borrow_mut();
                 let default: &mut Dispatch = default
                     // if the local default for this thread has never been set,
                     // populate it with the global default, so we don't have to
                     // keep getting the global on every `get_default_slow` call.
                     .get_or_insert_with(|| get_global().clone());
-                call_me_only_once(default)
+
+                unsafe { f.call(&*default) }
             } else {
-                call_me_only_once(&Dispatch::none())
+                unsafe { f.call(&Dispatch::none()) }
             }
-        }).unwrap_or_else(|_| call_me_only_once(&Dispatch::none()))
+        })
+        .unwrap_or_else(|_| unsafe { f.call(&Dispatch::none()) })
 }
 
 /// Executes a closure with a reference to this thread's current [dispatcher].
@@ -472,9 +520,9 @@ pub fn get_current<T>(f: impl FnOnce(&Dispatch) -> T) -> Option<T> {
 ///
 /// [dispatcher]: super::dispatcher::Dispatch
 #[cfg(not(feature = "std"))]
-pub fn get_default<T, F>(mut f: F) -> T
+pub fn get_default<T, F>(f: F) -> T
 where
-    F: FnMut(&Dispatch) -> T,
+    F: FnOnce(&Dispatch) -> T,
 {
     f(get_global())
 }
