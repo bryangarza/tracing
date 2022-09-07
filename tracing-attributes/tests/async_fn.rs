@@ -178,7 +178,7 @@ fn async_fn_with_async_trait() {
     let (collector, handle) = collector::mock()
         .new_span(
             span.clone()
-                .with_field(field::mock("self"))
+                .with_fields(field::mock("self"))
                 .with_field(field::mock("v")),
         )
         .enter(span.clone())
@@ -187,7 +187,7 @@ fn async_fn_with_async_trait() {
         .event(event::mock().with_fields(field::mock("val").with_value(&2u64)))
         .exit(span3.clone())
         .drop_span(span3)
-        .new_span(span2.clone().with_field(field::mock("self")))
+        .new_span(span2.clone().with_fields(field::mock("self")))
         .enter(span2.clone())
         .event(event::mock().with_fields(field::mock("val").with_value(&5u64)))
         .exit(span2.clone())
@@ -233,7 +233,7 @@ fn async_fn_with_async_trait_and_fields_expressions() {
     let span = span::mock().named("call");
     let (collector, handle) = collector::mock()
         .new_span(
-            span.clone().with_field(
+            span.clone().with_fields(
                 field::mock("_v")
                     .with_value(&5usize)
                     .and(field::mock("test").with_value(&tracing::field::debug(10)))
@@ -309,13 +309,13 @@ fn async_fn_with_async_trait_and_fields_expressions_with_generic_parameter() {
         .new_span(
             span2
                 .clone()
-                .with_field(field::mock("Self").with_value(&std::any::type_name::<TestImpl>())),
+                .with_fields(field::mock("Self").with_value(&std::any::type_name::<TestImpl>())),
         )
         .enter(span2.clone())
         .new_span(
             span4
                 .clone()
-                .with_field(field::mock("Self").with_value(&std::any::type_name::<TestImpl>())),
+                .with_fields(field::mock("Self").with_value(&std::any::type_name::<TestImpl>())),
         )
         .enter(span4.clone())
         .exit(span4)
@@ -324,7 +324,7 @@ fn async_fn_with_async_trait_and_fields_expressions_with_generic_parameter() {
         .new_span(
             span3
                 .clone()
-                .with_field(field::mock("Self").with_value(&std::any::type_name::<TestImpl>())),
+                .with_fields(field::mock("Self").with_value(&std::any::type_name::<TestImpl>())),
         )
         .enter(span3.clone())
         .exit(span3.clone())

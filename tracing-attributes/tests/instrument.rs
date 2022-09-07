@@ -55,7 +55,7 @@ fn fields() {
         .with_target("my_target");
     let (collector, handle) = collector::mock()
         .new_span(
-            span.clone().with_field(
+            span.clone().with_fields(
                 field::mock("arg1")
                     .with_value(&2usize)
                     .and(field::mock("arg2").with_value(&false))
@@ -66,7 +66,7 @@ fn fields() {
         .exit(span.clone())
         .drop_span(span)
         .new_span(
-            span2.clone().with_field(
+            span2.clone().with_fields(
                 field::mock("arg1")
                     .with_value(&3usize)
                     .and(field::mock("arg2").with_value(&true))
@@ -106,7 +106,7 @@ fn skip() {
     let (collector, handle) = collector::mock()
         .new_span(
             span.clone()
-                .with_field(field::mock("arg1").with_value(&2usize).only()),
+                .with_fields(field::mock("arg1").with_value(&2usize).only()),
         )
         .enter(span.clone())
         .exit(span.clone())
@@ -114,7 +114,7 @@ fn skip() {
         .new_span(
             span2
                 .clone()
-                .with_field(field::mock("arg1").with_value(&3usize).only()),
+                .with_fields(field::mock("arg1").with_value(&3usize).only()),
         )
         .enter(span2.clone())
         .exit(span2.clone())
@@ -146,7 +146,7 @@ fn generics() {
 
     let (collector, handle) = collector::mock()
         .new_span(
-            span.clone().with_field(
+            span.clone().with_fields(
                 field::mock("arg1")
                     .with_value(&format_args!("Foo"))
                     .and(field::mock("arg2").with_value(&format_args!("false"))),
@@ -179,7 +179,7 @@ fn methods() {
 
     let (collector, handle) = collector::mock()
         .new_span(
-            span.clone().with_field(
+            span.clone().with_fields(
                 field::mock("self")
                     .with_value(&format_args!("Foo"))
                     .and(field::mock("arg1").with_value(&42usize)),
@@ -211,7 +211,7 @@ fn impl_trait_return_type() {
     let (collector, handle) = collector::mock()
         .new_span(
             span.clone()
-                .with_field(field::mock("x").with_value(&10usize).only()),
+                .with_fields(field::mock("x").with_value(&10usize).only()),
         )
         .enter(span.clone())
         .exit(span.clone())

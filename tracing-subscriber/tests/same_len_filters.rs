@@ -61,13 +61,13 @@ fn same_num_fields_and_name_len() {
             span::mock()
                 .named("foo")
                 .at_level(Level::TRACE)
-                .with_field(field::mock("bar")),
+                .with_fields(field::mock("bar")),
         )
         .new_span(
             span::mock()
                 .named("baz")
                 .at_level(Level::TRACE)
-                .with_field(field::mock("boz")),
+                .with_fields(field::mock("boz")),
         )
         .done()
         .run_with_handle();

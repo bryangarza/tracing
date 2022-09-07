@@ -20,4 +20,4 @@ members = [
 ]
 
 [patch.crates-io]
-valuable = { git = "https://github.com/bryangarza/valuable", branch = "partialeq-namedfield" }
+valuable = { git = "https://github.com/jswrenn/valuable", branch = "structable-get" }

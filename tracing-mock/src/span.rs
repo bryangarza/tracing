@@ -1,4 +1,6 @@
 #![allow(missing_docs)]
+use valuable::NamedValues;
+
 use super::{field, metadata, Parent};
 use std::fmt;
 
@@ -12,9 +14,9 @@ pub struct MockSpan {
 }
 
 #[derive(Default, Eq, PartialEq)]
-pub struct NewSpan {
+pub struct NewSpan<'a> {
     pub(crate) span: MockSpan,
-    pub(crate) fields: field::Expect,
+    pub(crate) fields: NamedValues<'a>,
     pub(crate) parent: Option<Parent>,
 }
 
@@ -101,13 +103,11 @@ impl MockSpan {
         self.metadata.target.as_deref()
     }
 
-    pub fn with_field<I>(self, fields: I) -> NewSpan
-    where
-        I: Into<field::Expect>,
+    pub fn with_fields(self, fields: NamedValues) -> NewSpan
     {
         NewSpan {
             span: self,
-            fields: fields.into(),
+            fields,
             ..Default::default()
         }
     }
@@ -143,7 +143,7 @@ impl fmt::Display for MockSpan {
     }
 }
 
-impl From<MockSpan> for NewSpan {
+impl<'a> From<MockSpan> for NewSpan<'a> {
     fn from(span: MockSpan) -> Self {
         Self {
             span,
@@ -152,7 +152,7 @@ impl From<MockSpan> for NewSpan {
     }
 }
 
-impl NewSpan {
+impl<'a> NewSpan<'a> {
     pub fn with_explicit_parent(self, parent: Option<&str>) -> NewSpan {
         let parent = match parent {
             Some(name) => Parent::Explicit(name.into()),
@@ -175,9 +175,7 @@ impl NewSpan {
         }
     }
 
-    pub fn with_field<I>(self, fields: I) -> NewSpan
-    where
-        I: Into<field::Expect>,
+    pub fn with_fields<I>(self, fields: NamedValues<'a>) -> NewSpan<'a>
     {
         NewSpan {
             fields: fields.into(),
@@ -212,7 +210,7 @@ impl NewSpan {
     }
 }
 
-impl fmt::Display for NewSpan {
+impl<'a> fmt::Display for NewSpan<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "a new span{}", self.span.metadata)?;
         if !self.fields.is_empty() {
@@ -222,7 +220,7 @@ impl fmt::Display for NewSpan {
     }
 }
 
-impl fmt::Debug for NewSpan {
+impl<'a> fmt::Debug for NewSpan<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("NewSpan");
 

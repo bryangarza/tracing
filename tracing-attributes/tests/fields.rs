@@ -48,7 +48,7 @@ impl HasField {
 
 #[test]
 fn fields() {
-    let span = span::mock().with_field(
+    let span = span::mock().with_fields(
         mock("foo")
             .with_value(&"bar")
             .and(mock("dsa").with_value(&true))
@@ -62,7 +62,7 @@ fn fields() {
 
 #[test]
 fn expr_field() {
-    let span = span::mock().with_field(
+    let span = span::mock().with_fields(
         mock("s")
             .with_value(&"hello world")
             .and(mock("len").with_value(&"hello world".len()))
@@ -75,7 +75,7 @@ fn expr_field() {
 
 #[test]
 fn two_expr_fields() {
-    let span = span::mock().with_field(
+    let span = span::mock().with_fields(
         mock("s")
             .with_value(&"hello world")
             .and(mock("s.len").with_value(&"hello world".len()))
@@ -89,7 +89,7 @@ fn two_expr_fields() {
 
 #[test]
 fn clashy_expr_field() {
-    let span = span::mock().with_field(
+    let span = span::mock().with_fields(
         // Overriding the `s` field should record `s` as a `Display` value,
         // rather than as a `Debug` value.
         mock("s")
@@ -101,7 +101,7 @@ fn clashy_expr_field() {
         fn_clashy_expr_field("hello world");
     });
 
-    let span = span::mock().with_field(mock("s").with_value(&"s").only());
+    let span = span::mock().with_fields(mock("s").with_value(&"s").only());
     run_test(span, || {
         fn_clashy_expr_field2("hello world");
     });
@@ -109,7 +109,7 @@ fn clashy_expr_field() {
 
 #[test]
 fn self_expr_field() {
-    let span = span::mock().with_field(mock("my_field").with_value(&"hello world").only());
+    let span = span::mock().with_fields(mock("my_field").with_value(&"hello world").only());
     run_test(span, || {
         let has_field = HasField {
             my_field: "hello world",
@@ -120,7 +120,7 @@ fn self_expr_field() {
 
 #[test]
 fn parameters_with_fields() {
-    let span = span::mock().with_field(
+    let span = span::mock().with_fields(
         mock("foo")
             .with_value(&"bar")
             .and(mock("param").with_value(&1u32))
@@ -133,7 +133,7 @@ fn parameters_with_fields() {
 
 #[test]
 fn empty_field() {
-    let span = span::mock().with_field(mock("foo").with_value(&"bar").only());
+    let span = span::mock().with_fields(mock("foo").with_value(&"bar").only());
     run_test(span, || {
         fn_empty_field();
     });
@@ -141,7 +141,7 @@ fn empty_field() {
 
 #[test]
 fn string_field() {
-    let span = span::mock().with_field(mock("s").with_value(&"hello world").only());
+    let span = span::mock().with_fields(mock("s").with_value(&"hello world").only());
     run_test(span, || {
         fn_string(String::from("hello world"));
     });

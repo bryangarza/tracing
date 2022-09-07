@@ -44,13 +44,13 @@ fn same_name_spans() {
             span::mock()
                 .named("foo")
                 .at_level(Level::TRACE)
-                .with_field(field::mock("bar")),
+                .with_fields(field::mock("bar")),
         )
         .new_span(
             span::mock()
                 .named("foo")
                 .at_level(Level::TRACE)
-                .with_field(field::mock("baz")),
+                .with_fields(field::mock("baz")),
         )
         .done()
         .run_with_handle();

@@ -19,9 +19,10 @@ use tracing::{
     span::{self, Attributes, Id},
     Collect, Event, Metadata,
 };
+use valuable::{NamedValues, Value, Visit};
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum Expect {
+pub enum Expect<'a> {
     Event(MockEvent),
     FollowsFrom {
         consequence: MockSpan,
@@ -31,8 +32,8 @@ pub enum Expect {
     Exit(MockSpan),
     CloneSpan(MockSpan),
     DropSpan(MockSpan),
-    Visit(MockSpan, mock_field::Expect),
-    NewSpan(NewSpan),
+    Visit(MockSpan, NamedValues<'a>),
+    NewSpan(NewSpan<'a>),
     Nothing,
 }
 
@@ -42,9 +43,9 @@ struct SpanState {
     meta: &'static Metadata<'static>,
 }
 
-struct Running<F: Fn(&Metadata<'_>) -> bool> {
+struct Running<'a, F: Fn(&Metadata<'_>) -> bool> {
     spans: Mutex<HashMap<Id, SpanState>>,
-    expected: Arc<Mutex<VecDeque<Expect>>>,
+    expected: Arc<Mutex<VecDeque<Expect<'a>>>>,
     current: Mutex<Vec<Id>>,
     ids: AtomicUsize,
     max_level: Option<LevelFilter>,
@@ -52,16 +53,16 @@ struct Running<F: Fn(&Metadata<'_>) -> bool> {
     name: String,
 }
 
-pub struct MockCollector<F: Fn(&Metadata<'_>) -> bool> {
-    expected: VecDeque<Expect>,
+pub struct MockCollector<'a, F: Fn(&Metadata<'_>) -> bool> {
+    expected: VecDeque<Expect<'a>>,
     max_level: Option<LevelFilter>,
     filter: F,
     name: String,
 }
 
-pub struct MockHandle(Arc<Mutex<VecDeque<Expect>>>, String);
+pub struct MockHandle<'a>(Arc<Mutex<VecDeque<Expect<'a>>>>, String);
 
-pub fn mock() -> MockCollector<fn(&Metadata<'_>) -> bool> {
+pub fn mock() -> MockCollector<'static, fn(&Metadata<'_>) -> bool> {
     MockCollector {
         expected: VecDeque::new(),
         filter: (|_: &Metadata<'_>| true) as for<'r, 's> fn(&'r Metadata<'s>) -> _,
@@ -73,7 +74,7 @@ pub fn mock() -> MockCollector<fn(&Metadata<'_>) -> bool> {
     }
 }
 
-impl<F> MockCollector<F>
+impl<'a, F> MockCollector<'a, F>
 where
     F: Fn(&Metadata<'_>) -> bool + 'static,
 {
@@ -134,25 +135,23 @@ where
         self
     }
 
-    pub fn record<I>(mut self, span: MockSpan, fields: I) -> Self
-    where
-        I: Into<mock_field::Expect>,
+    pub fn record(mut self, span: MockSpan, fields: NamedValues<'a>) -> Self
     {
-        self.expected.push_back(Expect::Visit(span, fields.into()));
+        self.expected.push_back(Expect::Visit(span, fields));
         self
     }
 
     pub fn new_span<I>(mut self, new_span: I) -> Self
     where
-        I: Into<NewSpan>,
+        I: Into<NewSpan<'a>>,
     {
         self.expected.push_back(Expect::NewSpan(new_span.into()));
         self
     }
 
-    pub fn with_filter<G>(self, filter: G) -> MockCollector<G>
+    pub fn with_filter<G>(self, filter: G) -> MockCollector<'a, G>
     where
-        G: Fn(&Metadata<'_>) -> bool + 'static,
+        G: Fn(&Metadata<'_>) -> bool + 'a,
     {
         MockCollector {
             expected: self.expected,
@@ -174,7 +173,10 @@ where
         collector
     }
 
-    pub fn run_with_handle(self) -> (impl Collect, MockHandle) {
+    pub fn run_with_handle(self) -> (impl Collect, MockHandle<'a>)
+    where
+        'a: 'static
+    {
         let expected = Arc::new(Mutex::new(self.expected));
         let handle = MockHandle(expected.clone(), self.name.clone());
         let collector = Running {
@@ -190,7 +192,114 @@ where
     }
 }
 
-impl<F> Collect for Running<F>
+struct EqVisitor<'a> {
+    expected: &'a Value<'a>,
+    is_eq: bool,
+}
+
+impl<'a> Visit for EqVisitor<'a> {
+    fn visit_named_fields(&mut self, named_values: &NamedValues<'_>) {
+        // for (nf, nv) in named_values.iter() {
+        //     let visitor = EqVisitor {
+        //         expected: self.expected.
+        //     }
+        //     visitor.visit(nv)
+        // }
+    }
+
+    fn visit_unnamed_fields(&mut self, values: &[Value<'_>]) {
+        let _ = values;
+    }
+
+    fn visit_primitive_slice(&mut self, slice: valuable::Slice<'_>) {
+        for value in slice {
+            self.visit_value(value);
+        }
+    }
+
+    fn visit_entry(&mut self, key: Value<'_>, value: Value<'_>) {
+        let _ = (key, value);
+    }
+
+    fn visit_value(&mut self, value: Value<'_>) {
+        self.is_eq = match (&self.expected, &value) {
+            (&Value::Structable(expected), Value::Structable(actual)) => {
+                let expected_def = expected.definition();
+                let actual_def = actual.definition();
+
+                // TODO: check that `expected` and `actual` have identical fields
+
+                // TODO: Improve how we get access to fields iterator?
+                match (expected_def.fields(), actual_def.fields()) {
+                    (Fields::Named(expected_named_fields), Fields::Named(_)) => {
+                        for expected_field in expected_named_fields.into_iter() {
+                            let expected_value = expected.get(expected_field);
+                            let actual_value = actual.get(expected_field);
+                            
+                            let visitor = Self {
+                                expected: expected_value,
+                                is_eq: true,
+                            };
+
+                            actual_value.visit(&mut visitor);
+                            if !visitor.is_eq {
+                                self.is_eq = false;
+                                return;
+                            }
+                        }
+                    },
+                    (Fields::Unnamed(expected_unnamed_fields), Fields::Unnamed(actual_unnamed_fields)) => {
+                        // TODO: How to get unnamed values??
+                    },
+                    _ => {
+                        self.is_eq = false;
+                    }
+                }
+            },
+            (&Value::Enumerable(expected), Value::Enumerable(actual)) => {
+                let expected_def = expected.definition();
+                let expected_variants = expected_def.variants();
+                for expected_variant in expected_variants.iter() {
+                    match expected_variant.fields() {
+                        Fields::Named(expected_named_fields) => {
+
+                        },
+                        Fields::Unnamed(expected_unnamed_fields) => {
+
+                        },
+                    }
+                }
+            },
+            (&Value::Listable(expected), Value::Listable(actual)) => {
+                
+            },
+            (&Value::Mappable(expected), Value::Mappable(actual)) => {
+                
+            },
+            (&Value::Bool(e), Value::Bool(v)) => e == v,
+            (&Value::Char(e), Value::Char(v)) => e == v,
+            (&Value::F32(e), Value::F32(v)) => e == v,
+            (&Value::F64(e), Value::F64(v)) => e == v,
+            (&Value::I8(e), Value::I8(v)) => e == v,
+            (&Value::I16(e), Value::I16(v)) => e == v,
+            (&Value::I32(e), Value::I32(v)) => e == v,
+            (&Value::I64(e), Value::I64(v)) => e == v,
+            (&Value::I128(e), Value::I128(v)) => e == v,
+            (&Value::Isize(e), Value::Isize(v)) => e == v,
+            (&Value::String(e), Value::String(v)) => e == v,
+            (&Value::U8(e), Value::U8(v)) => e == v,
+            (&Value::U16(e), Value::U16(v)) => e == v,
+            (&Value::U32(e), Value::U32(v)) => e == v,
+            (&Value::U64(e), Value::U64(v)) => e == v,
+            (&Value::U128(e), Value::U128(v)) => e == v,
+            (&Value::Usize(e), Value::Usize(v)) => e == v,
+            (&Value::Path(e), Value::Path(v)) => e == v,
+            _ => false,
+        }
+    }
+}
+
+impl<F> Collect for Running<'static, F>
 where
     F: Fn(&Metadata<'_>) -> bool + 'static,
 {
@@ -213,7 +322,7 @@ where
         self.max_level
     }
 
-    fn record(&self, id: &Id, values: &span::Record<'_>) {
+    fn record(&self, id: &Id, values: NamedValues<'_>) {
         let spans = self.spans.lock().unwrap();
         let mut expected = self.expected.lock().unwrap();
         let span = spans
@@ -231,9 +340,10 @@ where
                     assert_eq!(name, span.name);
                 }
                 let context = format!("span {}: ", span.name);
-                let mut checker = expected_values.checker(&context, &self.name);
-                values.record(&mut checker);
-                checker.finish();
+                for (expected_field, expected_value) in expected_values.iter() {
+                    values.get_by_name(expected_field.name()) == Some(expected_value)
+                }
+
             }
         }
     }
