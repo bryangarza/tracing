@@ -196,9 +196,8 @@ impl<'a> NewSpan<'a> {
         self.span
             .metadata
             .check(meta, format_args!("span `{}`", name), collector_name);
-        let mut checker = self.fields.checker(name, collector_name);
-        span.record(&mut checker);
-        checker.finish();
+        let named_values = NamedValues_(*span.fields());
+        assert_eq!(self.fields, named_values);
 
         if let Some(expected_parent) = self.parent.as_ref() {
             let actual_parent = get_parent_name();

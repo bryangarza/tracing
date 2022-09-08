@@ -1,6 +1,8 @@
 //! Spans represent periods of time in the execution of a program.
 use core::num::NonZeroU64;
 
+use valuable::NamedValues;
+
 use crate::parent::Parent;
 use crate::Metadata;
 
@@ -202,9 +204,9 @@ impl<'a> Attributes<'a> {
     /// [record]: Attributes::record()
     /// [`Metadata`]: crate::metadata::Metadata
     /// [`FieldSet`]: crate::field::FieldSet
-    pub fn fields(&self) -> &[valuable::NamedField<'_>] {
+    pub fn fields(&self) -> &NamedValues<'a> {
         // TODO, this method doesn't exist yet:
-        todo!("self.values.fields()")
+        &self.values
     }
 }
 
