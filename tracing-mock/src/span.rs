@@ -1,7 +1,9 @@
 #![allow(missing_docs)]
 use valuable::NamedValues;
 
-use super::{field, metadata, Parent};
+use crate::valuable::NamedValues_;
+
+use super::{metadata, Parent};
 use std::fmt;
 
 /// A mock span.
@@ -16,7 +18,7 @@ pub struct MockSpan {
 #[derive(Default, Eq, PartialEq)]
 pub struct NewSpan<'a> {
     pub(crate) span: MockSpan,
-    pub(crate) fields: NamedValues<'a>,
+    pub(crate) fields: NamedValues_<'a>,
     pub(crate) parent: Option<Parent>,
 }
 
@@ -103,7 +105,7 @@ impl MockSpan {
         self.metadata.target.as_deref()
     }
 
-    pub fn with_fields(self, fields: NamedValues) -> NewSpan
+    pub fn with_fields(self, fields: NamedValues_) -> NewSpan
     {
         NewSpan {
             span: self,
@@ -175,7 +177,7 @@ impl<'a> NewSpan<'a> {
         }
     }
 
-    pub fn with_fields<I>(self, fields: NamedValues<'a>) -> NewSpan<'a>
+    pub fn with_fields<I>(self, fields: NamedValues_<'a>) -> NewSpan<'a>
     {
         NewSpan {
             fields: fields.into(),
@@ -214,7 +216,7 @@ impl<'a> fmt::Display for NewSpan<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "a new span{}", self.span.metadata)?;
         if !self.fields.is_empty() {
-            write!(f, " with {}", self.fields)?;
+            write!(f, " with {:?}", self.fields)?;
         }
         Ok(())
     }

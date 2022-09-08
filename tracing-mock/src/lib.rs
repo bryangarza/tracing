@@ -5,8 +5,9 @@ use std::{
 
 pub mod collector;
 pub mod event;
-pub mod field;
+pub mod valuable;
 mod metadata;
+
 pub mod span;
 
 #[derive(Debug, Eq, PartialEq)]

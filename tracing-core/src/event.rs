@@ -1,4 +1,6 @@
 //! Events represent single points in time during the execution of a program.
+use valuable::NamedValues;
+
 use crate::parent::Parent;
 use crate::span::Id;
 use crate::Metadata;
@@ -88,8 +90,8 @@ impl<'a> Event<'a> {
     }
 
     /// Returns an iterator over the set of values on this `Event`.
-    pub fn fields(&self) -> impl Iterator + '_ {
-        self.fields.iter()
+    pub fn fields(&self) -> &NamedValues<'a> {
+        &self.fields
     }
 
     /// Returns [metadata] describing this `Event`.

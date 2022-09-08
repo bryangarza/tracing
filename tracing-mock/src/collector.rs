@@ -1,7 +1,8 @@
 #![allow(missing_docs)]
+use crate::valuable::NamedValues_;
+
 use super::{
     event::MockEvent,
-    field as mock_field,
     span::{MockSpan, NewSpan},
 };
 use std::{
@@ -23,7 +24,7 @@ use valuable::{NamedValues, Value, Visit};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Expect<'a> {
-    Event(MockEvent),
+    Event(MockEvent<'a>),
     FollowsFrom {
         consequence: MockSpan,
         cause: MockSpan,
@@ -32,7 +33,7 @@ pub enum Expect<'a> {
     Exit(MockSpan),
     CloneSpan(MockSpan),
     DropSpan(MockSpan),
-    Visit(MockSpan, NamedValues<'a>),
+    Visit(MockSpan, NamedValues_<'a>),
     NewSpan(NewSpan<'a>),
     Nothing,
 }
@@ -135,7 +136,7 @@ where
         self
     }
 
-    pub fn record(mut self, span: MockSpan, fields: NamedValues<'a>) -> Self
+    pub fn record(mut self, span: MockSpan, fields: NamedValues_<'a>) -> Self
     {
         self.expected.push_back(Expect::Visit(span, fields));
         self
@@ -216,6 +217,7 @@ where
     }
 
     fn record(&self, id: &Id, values: NamedValues<'_>) {
+        let values = NamedValues_(values);
         let spans = self.spans.lock().unwrap();
         let mut expected = self.expected.lock().unwrap();
         let span = spans
@@ -233,9 +235,10 @@ where
                     assert_eq!(name, span.name);
                 }
                 let context = format!("span {}: ", span.name);
-                for (expected_field, expected_value) in expected_values.iter() {
-                    values.get_by_name(expected_field.name()) == Some(expected_value)
-                }
+                assert_eq!(expected_values, values);
+                // for (expected_field, expected_value) in expected_values.iter() {
+                //     values.get_by_name(expected_field.name()) == Some(expected_value)
+                // }
 
             }
         }
@@ -471,7 +474,7 @@ where
     }
 }
 
-impl MockHandle {
+impl<'a> MockHandle<'a> {
     pub fn new(expected: Arc<Mutex<VecDeque<Expect>>>, name: String) -> Self {
         Self(expected, name)
     }
@@ -488,7 +491,7 @@ impl MockHandle {
     }
 }
 
-impl Expect {
+impl<'a> Expect<'a> {
     pub fn bad(&self, name: impl AsRef<str>, what: fmt::Arguments<'_>) {
         let name = name.as_ref();
         match self {
@@ -521,7 +524,7 @@ impl Expect {
                 )
             }
             Expect::Visit(e, fields) => panic!(
-                "\n[{}] expected {} to record {}\n[{}] but instead {}",
+                "\n[{}] expected {} to record {:?}\n[{}] but instead {}",
                 name, e, fields, name, what,
             ),
             Expect::NewSpan(e) => panic!(

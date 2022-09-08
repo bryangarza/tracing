@@ -1,5 +1,9 @@
 #![allow(missing_docs)]
-use super::{field, metadata, span, Parent};
+use valuable::{NamedValues, NamedField, Value};
+
+use crate::valuable::NamedValues_;
+
+use super::{metadata, span, Parent};
 
 use std::fmt;
 
@@ -8,24 +12,32 @@ use std::fmt;
 /// This is intended for use with the mock subscriber API in the
 /// `subscriber` module.
 #[derive(Default, Eq, PartialEq)]
-pub struct MockEvent {
-    pub fields: Option<field::Expect>,
+pub struct MockEvent<'a> {
+    pub fields: Option<NamedValues_<'a>>,
     pub(crate) parent: Option<Parent>,
     in_spans: Vec<span::MockSpan>,
     metadata: metadata::Expect,
 }
 
-pub fn mock() -> MockEvent {
+pub fn mock<'a>() -> MockEvent<'a> {
     MockEvent {
         ..Default::default()
     }
 }
 
-pub fn msg(message: impl fmt::Display) -> MockEvent {
-    mock().with_fields(field::msg(message))
+pub fn msg<'a>(message: impl fmt::Display) -> MockEvent<'a> {
+    let fields = [
+        NamedField::new("message"),
+    ];
+    let values = [
+        Value::String(message.to_string().as_str()),
+    ];
+
+    let named_values = NamedValues::new(&fields, &values);
+    mock().with_fields(NamedValues_(named_values))
 }
 
-impl MockEvent {
+impl<'a> MockEvent<'a> {
     pub fn named<I>(self, name: I) -> Self
     where
         I: Into<String>,
@@ -39,12 +51,10 @@ impl MockEvent {
         }
     }
 
-    pub fn with_fields<I>(self, fields: I) -> Self
-    where
-        I: Into<field::Expect>,
+    pub fn with_fields(self, fields: NamedValues_<'a>) -> Self
     {
         Self {
-            fields: Some(fields.into()),
+            fields: Some(fields),
             ..self
         }
     }
@@ -100,10 +110,9 @@ impl MockEvent {
             self,
             event
         );
-        if let Some(ref mut expected_fields) = self.fields {
-            let mut checker = expected_fields.checker(name, collector_name);
-            event.record(&mut checker);
-            checker.finish();
+        if let Some(expected_fields) = self.fields {
+            let named_values = NamedValues_(*event.fields());
+            assert_eq!(expected_fields, named_values);
         }
 
         if let Some(ref expected_parent) = self.parent {
@@ -129,13 +138,13 @@ impl MockEvent {
     }
 }
 
-impl fmt::Display for MockEvent {
+impl<'a> fmt::Display for MockEvent<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "an event{}", self.metadata)
     }
 }
 
-impl fmt::Debug for MockEvent {
+impl<'a> fmt::Debug for MockEvent<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("MockEvent");
 
