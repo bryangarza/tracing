@@ -593,7 +593,7 @@ impl Dispatch {
 
     #[inline(always)]
     #[cfg(feature = "alloc")]
-    fn collector(&self) -> &(dyn Collect + Send + Sync) {
+    pub(crate) fn collector(&self) -> &(dyn Collect + Send + Sync) {
         match self.collector {
             Kind::Scoped(ref s) => Arc::deref(s),
             Kind::Global(s) => s,
@@ -602,7 +602,7 @@ impl Dispatch {
 
     #[inline(always)]
     #[cfg(not(feature = "alloc"))]
-    fn collector(&self) -> &(dyn Collect + Send + Sync) {
+    pub(crate) fn collector(&self) -> &(dyn Collect + Send + Sync) {
         self.collector
     }
 
@@ -810,7 +810,7 @@ impl Dispatch {
     /// `T`.
     #[inline]
     pub fn is<T: Any>(&self) -> bool {
-        <dyn Collect>::is::<T>(&*self.collector())
+        <dyn Collect>::is::<T>(self.collector())
     }
 
     /// Returns some reference to the [`Collect`] this `Dispatch` forwards to
@@ -819,7 +819,7 @@ impl Dispatch {
     /// [`Collect`]: super::collect::Collect
     #[inline]
     pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
-        <dyn Collect>::downcast_ref(&*self.collector())
+        <dyn Collect>::downcast_ref(self.collector())
     }
 }
 
