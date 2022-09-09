@@ -1,5 +1,4 @@
 #![allow(missing_docs)]
-use valuable::NamedValues;
 
 use crate::valuable::NamedValues_;
 
@@ -155,7 +154,7 @@ impl<'a> From<MockSpan> for NewSpan<'a> {
 }
 
 impl<'a> NewSpan<'a> {
-    pub fn with_explicit_parent(self, parent: Option<&str>) -> NewSpan {
+    pub fn with_explicit_parent(self, parent: Option<&'a str>) -> NewSpan {
         let parent = match parent {
             Some(name) => Parent::Explicit(name.into()),
             None => Parent::ExplicitRoot,
@@ -166,7 +165,7 @@ impl<'a> NewSpan<'a> {
         }
     }
 
-    pub fn with_contextual_parent(self, parent: Option<&str>) -> NewSpan {
+    pub fn with_contextual_parent(self, parent: Option<&'a str>) -> NewSpan {
         let parent = match parent {
             Some(name) => Parent::Contextual(name.into()),
             None => Parent::ContextualRoot,
@@ -187,7 +186,7 @@ impl<'a> NewSpan<'a> {
 
     pub fn check(
         &mut self,
-        span: &tracing_core::span::Attributes<'_>,
+        span: &'a tracing_core::span::Attributes<'_>,
         get_parent_name: impl FnOnce() -> Option<String>,
         collector_name: &str,
     ) {
@@ -196,7 +195,7 @@ impl<'a> NewSpan<'a> {
         self.span
             .metadata
             .check(meta, format_args!("span `{}`", name), collector_name);
-        let named_values = NamedValues_(*span.fields());
+        let named_values = NamedValues_::new(*span.fields());
         assert_eq!(self.fields, named_values);
 
         if let Some(expected_parent) = self.parent.as_ref() {

@@ -17,10 +17,10 @@ use std::{
 use tracing::{
     collect::Interest,
     level_filters::LevelFilter,
-    span::{self, Attributes, Id},
+    span::{Attributes, Id},
     Collect, Event, Metadata,
 };
-use valuable::{NamedValues, Value, Visit};
+use valuable::{NamedValues, Value};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum Expect<'a> {
@@ -110,7 +110,7 @@ where
         self
     }
 
-    pub fn event(mut self, event: MockEvent) -> Self {
+    pub fn event(mut self, event: MockEvent<'a>) -> Self {
         self.expected.push_back(Expect::Event(event));
         self
     }
@@ -136,9 +136,9 @@ where
         self
     }
 
-    pub fn record(mut self, span: MockSpan, fields: NamedValues_<'a>) -> Self
+    pub fn record(mut self, span: MockSpan, fields: NamedValues<'a>) -> Self
     {
-        self.expected.push_back(Expect::Visit(span, fields));
+        self.expected.push_back(Expect::Visit(span, NamedValues_::new(fields)));
         self
     }
 
@@ -169,10 +169,10 @@ where
         }
     }
 
-    pub fn run(self) -> impl Collect {
-        let (collector, _) = self.run_with_handle();
-        collector
-    }
+    // pub fn run(self) -> impl Collect {
+    //     let (collector, _) = self.run_with_handle();
+    //     collector
+    // }
 
     pub fn run_with_handle(self) -> (impl Collect, MockHandle<'a>)
     where
@@ -217,7 +217,6 @@ where
     }
 
     fn record(&self, id: &Id, values: NamedValues<'_>) {
-        let values = NamedValues_(values);
         let spans = self.spans.lock().unwrap();
         let mut expected = self.expected.lock().unwrap();
         let span = spans
@@ -229,16 +228,42 @@ where
         );
         let was_expected = matches!(expected.front(), Some(Expect::Visit(_, _)));
         if was_expected {
-            if let Expect::Visit(expected_span, mut expected_values) = expected.pop_front().unwrap()
+            if let Expect::Visit(expected_span, expected_values) = expected.pop_front().unwrap()
             {
                 if let Some(name) = expected_span.name() {
                     assert_eq!(name, span.name);
                 }
                 let context = format!("span {}: ", span.name);
-                assert_eq!(expected_values, values);
-                // for (expected_field, expected_value) in expected_values.iter() {
-                //     values.get_by_name(expected_field.name()) == Some(expected_value)
-                // }
+                for (expected_field, expected_value) in expected_values.0.lock().unwrap().iter() {
+                    let value = values.get_by_name(expected_field.name()).unwrap();
+                    match (value, expected_value) {
+                        (Value::Bool(v), Value::Bool(e)) => assert_eq!(v, e),
+                        (Value::Char(v), Value::Char(e)) => assert_eq!(v, e),
+                        (Value::F32(v), Value::F32(e)) => assert_eq!(v, e),
+                        (Value::F64(v), Value::F64(e)) => assert_eq!(v, e),
+                        (Value::I8(v), Value::I8(e)) => assert_eq!(v, e),
+                        (Value::I16(v), Value::I16(e)) => assert_eq!(v, e),
+                        (Value::I32(v), Value::I32(e)) => assert_eq!(v, e),
+                        (Value::I64(v), Value::I64(e)) => assert_eq!(v, e),
+                        (Value::I128(v), Value::I128(e)) => assert_eq!(v, e),
+                        (Value::Isize(v), Value::Isize(e)) => assert_eq!(v, e),
+                        (Value::String(v), Value::String(e)) => assert_eq!(v, e),
+                        (Value::U8(v), Value::U8(e)) => assert_eq!(v, e),
+                        (Value::U16(v), Value::U16(e)) => assert_eq!(v, e),
+                        (Value::U32(v), Value::U32(e)) => assert_eq!(v, e),
+                        (Value::U64(v), Value::U64(e)) => assert_eq!(v, e),
+                        (Value::U128(v), Value::U128(e)) => assert_eq!(v, e),
+                        (Value::Usize(v), Value::Usize(e)) => assert_eq!(v, e),
+                        (Value::Error(_), Value::Error(_)) => unimplemented!(),
+                        (Value::Listable(_), Value::Listable(_)) => unimplemented!(),
+                        (Value::Mappable(_), Value::Mappable(_)) => unimplemented!(),
+                        (Value::Structable(_), Value::Structable(_)) => unimplemented!(),
+                        (Value::Enumerable(_), Value::Enumerable(_)) => unimplemented!(),
+                        (Value::Tuplable(_), Value::Tuplable(_)) => unimplemented!(),
+                        (Value::Unit, Value::Unit) => (),
+                        _ => unimplemented!(),
+                    }
+                }
 
             }
         }
@@ -475,7 +500,7 @@ where
 }
 
 impl<'a> MockHandle<'a> {
-    pub fn new(expected: Arc<Mutex<VecDeque<Expect>>>, name: String) -> Self {
+    pub fn new(expected: Arc<Mutex<VecDeque<Expect<'a>>>>, name: String) -> Self {
         Self(expected, name)
     }
 

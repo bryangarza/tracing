@@ -30,11 +30,13 @@ pub fn msg<'a>(message: impl fmt::Display) -> MockEvent<'a> {
         NamedField::new("message"),
     ];
     let values = [
-        Value::String(message.to_string().as_str()),
+        Value::String(Box::leak(message.to_string().into_boxed_str())),
     ];
+    let fields = Box::leak(Box::new(fields));
+    let values = Box::leak(Box::new(values));
 
-    let named_values = NamedValues::new(&fields, &values);
-    mock().with_fields(NamedValues_(named_values))
+    let named_values = NamedValues::new(fields, values);
+    mock().with_fields(NamedValues_::new(named_values))
 }
 
 impl<'a> MockEvent<'a> {
@@ -82,7 +84,7 @@ impl<'a> MockEvent<'a> {
         }
     }
 
-    pub fn with_explicit_parent(self, parent: Option<&str>) -> MockEvent {
+    pub fn with_explicit_parent(self, parent: Option<&'a str>) -> MockEvent {
         let parent = match parent {
             Some(name) => Parent::Explicit(name.into()),
             None => Parent::ExplicitRoot,
@@ -95,7 +97,7 @@ impl<'a> MockEvent<'a> {
 
     pub fn check(
         &mut self,
-        event: &tracing::Event<'_>,
+        event: &'a tracing::Event<'a>,
         get_parent_name: impl FnOnce() -> Option<String>,
         collector_name: &str,
     ) {
@@ -110,9 +112,9 @@ impl<'a> MockEvent<'a> {
             self,
             event
         );
-        if let Some(expected_fields) = self.fields {
-            let named_values = NamedValues_(*event.fields());
-            assert_eq!(expected_fields, named_values);
+        if let Some(expected_fields) = &self.fields {
+            let named_values = NamedValues_::new(*event.fields());
+            assert_eq!(*expected_fields, named_values);
         }
 
         if let Some(ref expected_parent) = self.parent {
